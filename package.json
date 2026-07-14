@@ -1,5 +1,10 @@
 {
   "dependencies": {
-    "phaser": "^4.2.1"
+    "@apps-in-toss/web-framework": "^2.10.6",
+    "@toss/tds-mobile": "^2.5.0",
+    "@toss/tds-mobile-ait": "^2.5.0",
+    "phaser": "^4.2.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   }
 }
