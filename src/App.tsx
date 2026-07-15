@@ -1,77 +1,103 @@
-import { Asset, Button, Top } from "@toss/tds-mobile";
+import { useEffect, useRef, useState } from "react";
+import { Button } from "@toss/tds-mobile";
+import { GameCanvas, type GameController } from "./components/GameCanvas";
+import { GameControls } from "./components/GameControls";
+import { getBestScore, saveBestScore } from "./lib/highScore";
+import { shareScore } from "./lib/shareScore";
+import type { Direction, GameResult } from "./game/types";
 import "./App.css";
-import { InAppPurchasePage } from "./pages/InAppPurchasePage";
-import { InAppAdsPage } from "./pages/InAppAdsPage";
-import { useState } from "react";
+
+type Screen = "start" | "playing" | "result";
 
 function App() {
-  const [page, setPage] = useState<string | null>(null);
+  const controllerRef = useRef<GameController>(null);
+  const [screen, setScreen] = useState<Screen>("start");
+  const [bestScore, setBestScore] = useState(() => getBestScore());
+  const [result, setResult] = useState<GameResult | null>(null);
+  const [shareMessage, setShareMessage] = useState("");
 
-  if (page === "iap") return <InAppPurchasePage onBack={() => setPage(null)} />;
-  if (page === "iaa") return <InAppAdsPage onBack={() => setPage(null)} />;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (screen !== "playing") return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        controllerRef.current?.sort("left");
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        controllerRef.current?.sort("right");
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [screen]);
+
+  function startGame() {
+    setResult(null);
+    setShareMessage("");
+    controllerRef.current?.start();
+    setScreen("playing");
+  }
+
+  function handleGameOver(nextResult: GameResult) {
+    setResult(nextResult);
+    setBestScore(saveBestScore(nextResult.score));
+    setScreen("result");
+  }
+
+  async function handleShare() {
+    if (!result) return;
+    const outcome = await shareScore(result.score);
+    setShareMessage(
+      outcome === "shared" ? "Score shared!" : outcome === "copied" ? "Score copied to clipboard!" : "Sharing is unavailable on this device.",
+    );
+  }
+
+  const sort = (direction: Direction) => controllerRef.current?.sort(direction);
 
   return (
-    <>
-      <Top
-        title={<Top.TitleParagraph size={22}>반가워요</Top.TitleParagraph>}
-        subtitleBottom={
-          <Top.SubtitleParagraph size={17}>
-            앱인토스 개발을 시작해 보세요.
-          </Top.SubtitleParagraph>
-        }
-      />
+    <main className="app-shell">
+      <header className="game-header">
+        <p className="eyebrow">WATERMELON FACTORY</p>
+        <h1>Sort the Watermelons</h1>
+      </header>
 
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px",
-          padding: "24px",
-        }}
-      >
-        <Button
-          as="a"
-          variant="weak"
-          href="https://developers-apps-in-toss.toss.im"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          개발자센터
-        </Button>
-        <Button
-          as="a"
-          variant="weak"
-          href="https://techchat-apps-in-toss.toss.im"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          개발자 커뮤니티
-        </Button>
-        <Button color="dark" variant="weak" onClick={() => setPage("iap")}>
-          인앱결제 테스트하기
-        </Button>
+      {screen === "start" && (
+        <section className="card start-card">
+          <div className="watermelon-mark" aria-hidden="true">🍉</div>
+          <h2>Healthy left. Rotten right.</h2>
+          <p>Sort every watermelon before the 1.5-second belt timer ends.</p>
+          <div className="rule-grid">
+            <span>⌨️ Left arrow</span><strong>Healthy</strong>
+            <span>⌨️ Right arrow</span><strong>Rotten</strong>
+          </div>
+          <p className="hint">On a phone, use the buttons below the conveyor.</p>
+          <Button color="primary" onClick={startGame}>Start sorting</Button>
+          <p className="best-score">Best score: <strong>{bestScore}</strong></p>
+        </section>
+      )}
 
-        <Button color="dark" variant="weak" onClick={() => setPage("iaa")}>
-          인앱광고 테스트하기
-        </Button>
-      </div>
+      <section className={`game-area ${screen === "playing" ? "" : "game-area-hidden"}`} aria-label="Watermelon sorting game">
+        <GameCanvas ref={controllerRef} onGameOver={handleGameOver} />
+        {screen === "playing" && <GameControls onSort={sort} />}
+      </section>
 
-      <div
-        style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-        }}
-      >
-        <Asset.Image
-          alt="apps in toss logo"
-          frameShape={{ width: 160 }}
-          backgroundColor="transparent"
-          src={`${import.meta.env.BASE_URL}appsintoss-logo.png`}
-        />
-      </div>
-    </>
+      {screen === "result" && result && (
+        <section className="card result-card">
+          <p className="result-label">GAME OVER · {result.reason === "timeout" ? "Too slow" : "Wrong belt"}</p>
+          <h2>{result.score}</h2>
+          <p className="score-caption">watermelon score</p>
+          <div className="result-stats">
+            <div><span>Best score</span><strong>{bestScore}</strong></div>
+            <div><span>Top combo</span><strong>{result.combo}</strong></div>
+          </div>
+          <Button color="primary" onClick={startGame}>Try again</Button>
+          <div className="share-button-wrap"><Button variant="weak" onClick={handleShare}>Share score</Button></div>
+          {shareMessage && <p className="share-message" role="status">{shareMessage}</p>}
+        </section>
+      )}
+    </main>
   );
 }
 
