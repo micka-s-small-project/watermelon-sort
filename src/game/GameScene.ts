@@ -6,6 +6,8 @@ type GameAssets = {
   background: string;
   good: string;
   rotten: string;
+  theme: string;
+  sortEffect: string;
 };
 
 type SceneOptions = {
@@ -33,6 +35,7 @@ export class GameScene extends Phaser.Scene {
   private watermelonSprites: Phaser.GameObjects.Image[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
+  private backgroundMusic?: Phaser.Sound.BaseSound;
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -45,6 +48,8 @@ export class GameScene extends Phaser.Scene {
     this.load.image("conveyor-background", this.assets.background);
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
+    this.load.audio("watermelon-theme", this.assets.theme);
+    this.load.audio("sorting-effect", this.assets.sortEffect);
   }
 
   create() {
@@ -64,6 +69,7 @@ export class GameScene extends Phaser.Scene {
       color: "#222222",
       fontStyle: "bold",
     }).setOrigin(1, 0.5).setResolution(textResolution);
+    this.backgroundMusic = this.sound.add("watermelon-theme", { loop: true, volume: 0.35 });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanUp, this);
     this.ready = true;
@@ -82,6 +88,7 @@ export class GameScene extends Phaser.Scene {
     this.comboText?.setText("COMBO ×0");
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomType());
     this.playing = true;
+    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
     this.createQueueSprites();
     this.startTimer();
     return true;
@@ -91,6 +98,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.playing || this.resolved) return;
     this.resolved = true;
     this.roundTimer?.remove(false);
+    this.sound.play("sorting-effect", { volume: 0.55 });
 
     if (direction !== expectedDirection(this.activeType)) {
       this.finish("wrong");
@@ -158,11 +166,14 @@ export class GameScene extends Phaser.Scene {
   private finish(reason: GameOverReason) {
     this.playing = false;
     this.roundTimer?.remove(false);
+    this.backgroundMusic?.stop();
     this.onGameOver({ score: this.score, combo: this.combo, reason });
   }
 
   private cleanUp() {
     this.playing = false;
     this.roundTimer?.remove(false);
+    this.backgroundMusic?.destroy();
+    this.backgroundMusic = undefined;
   }
 }
