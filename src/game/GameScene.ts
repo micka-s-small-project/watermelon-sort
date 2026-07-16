@@ -16,6 +16,10 @@ type SceneOptions = {
   onReady: () => void;
 };
 
+type VolumeAdjustableSound = Phaser.Sound.BaseSound & {
+  setVolume?: (value: number) => unknown;
+};
+
 // Ten 70px sprites overlap by 41px so the belt reads as one busy, layered flow.
 const WATERMELON_Y = [70, 99, 128, 157, 186, 215, 244, 273, 302, 331];
 const SORT_TRANSITION_MS = 100;
@@ -30,12 +34,13 @@ export class GameScene extends Phaser.Scene {
   private resolved = true;
   private ready = false;
   private playing = false;
+  private musicMuted = false;
   private queue: WatermelonType[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
   private watermelonSprites: Phaser.GameObjects.Image[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
-  private backgroundMusic?: Phaser.Sound.BaseSound;
+  private backgroundMusic?: VolumeAdjustableSound;
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -58,18 +63,21 @@ export class GameScene extends Phaser.Scene {
     this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
 
     this.scoreText = this.add.text(16, 24, "SCORE 0", {
-      fontFamily: "Arial",
+      fontFamily: '"DosStory", monospace',
       fontSize: "15px",
       color: "#222222",
       fontStyle: "bold",
     }).setOrigin(0, 0.5).setResolution(textResolution);
     this.comboText = this.add.text(width - 16, 24, "COMBO ×0", {
-      fontFamily: "Arial",
+      fontFamily: '"DosStory", monospace',
       fontSize: "15px",
       color: "#222222",
       fontStyle: "bold",
     }).setOrigin(1, 0.5).setResolution(textResolution);
-    this.backgroundMusic = this.sound.add("watermelon-theme", { loop: true, volume: 0.35 });
+    this.backgroundMusic = this.sound.add("watermelon-theme", {
+      loop: true,
+      volume: this.musicMuted ? 0 : 0.35,
+    }) as VolumeAdjustableSound;
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanUp, this);
     this.ready = true;
@@ -92,6 +100,11 @@ export class GameScene extends Phaser.Scene {
     this.createQueueSprites();
     this.startTimer();
     return true;
+  }
+
+  setMusicMuted(muted: boolean) {
+    this.musicMuted = muted;
+    this.backgroundMusic?.setVolume?.(muted ? 0 : 0.35);
   }
 
   sort(direction: Direction) {
