@@ -30,9 +30,11 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
     const baseUrl = import.meta.env.BASE_URL;
     const scene = new GameScene({
       assets: {
-        background: `${baseUrl}assets/game/conveyor-background.jpg`,
-        good: `${baseUrl}assets/game/watermelon-good.jpg`,
-        rotten: `${baseUrl}assets/game/watermelon-rotten.jpg`,
+        background: `${baseUrl}assets/game/conveyor-background-8bit.jpg`,
+        good: `${baseUrl}assets/game/watermelon-good-8bit.png`,
+        rotten: `${baseUrl}assets/game/watermelon-rotten-8bit.png`,
+        theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
+        sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
       },
       onGameOver: (result) => callbackRef.current(result),
       onReady: () => {
