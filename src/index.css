@@ -2,6 +2,17 @@
   font-family: sans-serif;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+#root {
+  min-height: 100vh;
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }
@@ -17,6 +28,10 @@ body {
     display: flex;
     justify-content: center;
     align-items: flex-start;
-    background-color: #f5f5f5 !important;
+    background-color: #fff !important;
+  }
+
+  #root {
+    max-width: 480px;
   }
 }
