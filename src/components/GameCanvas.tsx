@@ -47,7 +47,7 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
       const baseUrl = import.meta.env.BASE_URL;
       const scene = new GameScene({
         assets: {
-          background: `${baseUrl}assets/game/conveyor-background-8bit-white.png`,
+          background: `${baseUrl}assets/game/conveyor-truck-clean-top-v9.png`,
           good: `${baseUrl}assets/game/watermelon-good-8bit.png`,
           rotten: `${baseUrl}assets/game/watermelon-rotten-8bit.png`,
           theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
@@ -68,7 +68,7 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
         type: Phaser.AUTO,
         parent: hostRef.current,
         width: 400,
-        height: 450,
+        height: 600,
         backgroundColor: "#f7f5f0",
         antialias: true,
         roundPixels: true,

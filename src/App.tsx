@@ -1,20 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@toss/tds-mobile";
 import { GameCanvas, type GameController } from "./components/GameCanvas";
 import { GameControls } from "./components/GameControls";
-import { getBestScore, saveBestScore } from "./lib/highScore";
+import { saveBestScore } from "./lib/highScore";
 import { shareScore } from "./lib/shareScore";
 import type { Direction, GameResult } from "./game/types";
 import "./App.css";
 
 type Screen = "start" | "playing" | "result";
 const MARKET_TITLE_LINES = ["7월의", "수박가게!"] as const;
+const RESULT_TITLE = "노 동 결 과!";
 
 function App() {
   const controllerRef = useRef<GameController>(null);
   const homeThemeRef = useRef<HTMLAudioElement | null>(null);
   const [screen, setScreen] = useState<Screen>("start");
-  const [bestScore, setBestScore] = useState(() => getBestScore());
   const [result, setResult] = useState<GameResult | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
@@ -91,7 +90,7 @@ function App() {
 
   function handleGameOver(nextResult: GameResult) {
     setResult(nextResult);
-    setBestScore(saveBestScore(nextResult.score));
+    saveBestScore(nextResult.score);
     setScreen("result");
   }
 
@@ -114,13 +113,6 @@ function App() {
 
   return (
     <main className={`app-shell app-shell-${screen}`}>
-      {screen !== "start" && (
-        <header className="game-header">
-          <p className="eyebrow">WATERMELON FACTORY</p>
-          <h1>Sort the Watermelons</h1>
-        </header>
-      )}
-
       {screen === "start" && (
         <section
           className="market-home"
@@ -161,18 +153,32 @@ function App() {
       </section>
 
       {screen === "result" && result && (
-        <section className="card result-card">
-          <p className="result-label">GAME OVER · {result.reason === "timeout" ? "Too slow" : "Wrong belt"}</p>
-          <h2>{result.score}</h2>
-          <p className="score-caption">watermelon score</p>
-          <div className="result-stats">
-            <div><span>Best score</span><strong>{bestScore}</strong></div>
-            <div><span>Top combo</span><strong>{result.combo}</strong></div>
+        <section
+          className="market-result"
+          aria-label="Labor result"
+          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}assets/game/game-over-market-background-v3.png)` }}
+        >
+          <h1 className="market-result-title">
+            {Array.from(RESULT_TITLE).map((character, index) => (
+              <span
+                className="market-result-title-character"
+                key={`${character}-${index}`}
+                style={{ animationDelay: `${index * 80}ms` }}
+              >
+                {character}
+              </span>
+            ))}
+          </h1>
+          <div className="market-result-board">
+            <strong className="market-result-score">{result.score}점</strong>
+            <p className="market-result-reason">해고 사유 : {result.reason === "timeout" ? "too slow" : "wrong belt"}</p>
           </div>
-          <div className="pixel-action"><Button color="primary" onClick={startGame}>Try again</Button></div>
-          <div className="share-button-wrap"><Button variant="weak" onClick={handleShare}>Share score</Button></div>
-          <div className="home-button-wrap"><Button variant="weak" onClick={goHome}>Main menu</Button></div>
-          {shareMessage && <p className="share-message" role="status">{shareMessage}</p>}
+          {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
+          <div className="market-result-actions">
+            <button type="button" onClick={startGame}>다시하기</button>
+            <button type="button" onClick={handleShare}>공유하기</button>
+            <button type="button" onClick={goHome}>메인메뉴</button>
+          </div>
         </section>
       )}
     </main>
