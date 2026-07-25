@@ -7,7 +7,7 @@ import type { Direction, GameResult } from "./game/types";
 import "./App.css";
 
 type Screen = "start" | "playing" | "result";
-const MARKET_TITLE_LINES = ["7월의", "수박가게!"] as const;
+const MARKET_TITLE_LINES = ["수박수박", "수박박수박"] as const;
 const RESULT_TITLE = "노 동 결 과!";
 
 function App() {
