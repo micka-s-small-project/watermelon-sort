@@ -6,14 +6,16 @@ import { shareScore } from "./lib/shareScore";
 import type { Direction, GameResult } from "./game/types";
 import "./App.css";
 
-type Screen = "start" | "playing" | "result";
+type Screen = "start" | "countdown" | "playing" | "result";
 const MARKET_TITLE_LINES = ["수박수박", "수박박수박"] as const;
 const RESULT_TITLE = "노 동 결 과!";
+const COUNTDOWN_SECONDS = 3;
 
 function App() {
   const controllerRef = useRef<GameController>(null);
   const homeThemeRef = useRef<HTMLAudioElement | null>(null);
   const [screen, setScreen] = useState<Screen>("start");
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [result, setResult] = useState<GameResult | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
@@ -58,6 +60,21 @@ function App() {
   }, [screen]);
 
   useEffect(() => {
+    if (screen !== "countdown") return;
+
+    const timer = window.setTimeout(() => {
+      if (countdown === 1) {
+        controllerRef.current?.start();
+        setScreen("playing");
+        return;
+      }
+      setCountdown((value) => value - 1);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [countdown, screen]);
+
+  useEffect(() => {
     if (homeThemeRef.current) homeThemeRef.current.muted = isMusicMuted;
     controllerRef.current?.setMusicMuted(isMusicMuted);
   }, [isMusicMuted]);
@@ -84,8 +101,9 @@ function App() {
     if (homeThemeRef.current) homeThemeRef.current.currentTime = 0;
     setResult(null);
     setShareMessage("");
-    controllerRef.current?.start();
-    setScreen("playing");
+    controllerRef.current?.preview();
+    setCountdown(COUNTDOWN_SECONDS);
+    setScreen("countdown");
   }
 
   function handleGameOver(nextResult: GameResult) {
@@ -147,8 +165,13 @@ function App() {
         </section>
       )}
 
-      <section className={`game-area ${screen === "playing" ? "" : "game-area-hidden"}`} aria-label="Watermelon sorting game">
+      <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label="Watermelon sorting game">
         <GameCanvas ref={controllerRef} onGameOver={handleGameOver} />
+        {screen === "countdown" && (
+          <div className="game-countdown" aria-label="게임 시작 카운트다운">
+            <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
+          </div>
+        )}
         {screen === "playing" && <GameControls onSort={sort} />}
       </section>
 

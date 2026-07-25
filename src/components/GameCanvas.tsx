@@ -4,6 +4,7 @@ import { GameScene } from "../game/GameScene";
 import type { Direction, GameResult } from "../game/types";
 
 export type GameController = {
+  preview: () => void;
   start: () => void;
   sort: (direction: Direction) => void;
   setMusicMuted: (muted: boolean) => void;
@@ -15,11 +16,15 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GameScene>();
   const callbackRef = useRef(onGameOver);
+  const pendingPreviewRef = useRef(false);
   const pendingStartRef = useRef(false);
   const musicMutedRef = useRef(false);
   callbackRef.current = onGameOver;
 
   useImperativeHandle(ref, () => ({
+    preview: () => {
+      if (!sceneRef.current?.preview()) pendingPreviewRef.current = true;
+    },
     start: () => {
       if (!sceneRef.current?.begin()) pendingStartRef.current = true;
     },
@@ -56,6 +61,10 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
         onGameOver: (result) => callbackRef.current(result),
         onReady: () => {
           scene.setMusicMuted(musicMutedRef.current);
+          if (pendingPreviewRef.current) {
+            pendingPreviewRef.current = false;
+            scene.preview();
+          }
           if (pendingStartRef.current) {
             pendingStartRef.current = false;
             scene.begin();
