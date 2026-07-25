@@ -1,29 +1,52 @@
-# watermelon-sorter
+# 수박수박수박박수박
 
-독립 실행형 Android 앱으로 빌드할 수 있는 React + Phaser 게임입니다.
+수박 레일 위로 들어오는 수박을 빠르게 분류하는 React + Phaser 기반 캐주얼 게임입니다. Capacitor를 통해 Android 앱으로 빌드할 수 있습니다.
 
-## 시작하기
+## 기획 의도
+
+싱싱한 수박과 썩은 수박을 순간적으로 구분해 올바른 레일로 보내는, 짧고 직관적인 순발력 게임입니다. 한 번의 잘못된 선택이나 시간 초과로 게임이 끝나므로, 간단한 조작으로도 긴장감 있는 플레이를 만들고자 했습니다.
+
+처음에는 앱인토스 제출을 목표로 제작했습니다. 다만 게임 심사 기간을 고려해, 더 빠르게 배포하고 사용자 반응을 확인할 수 있도록 Google Play 출시를 목표로 전환했습니다.
+
+## 플레이 방식
+
+1. 시작 버튼을 누르면 수박 레일 위에서 `3 → 2 → 1` 카운트다운이 표시됩니다.
+2. 카운트다운이 끝나면 가장 아래에 도착한 수박을 확인합니다.
+3. 싱싱한 수박은 왼쪽(←), 썩은 수박은 오른쪽(→)으로 보냅니다.
+4. 수박 하나를 분류할 수 있는 시간은 1.5초입니다.
+5. 잘못된 방향을 선택하거나 제한 시간 안에 분류하지 못하면 게임이 종료됩니다.
+
+## 점수 산출 방식
+
+올바르게 수박을 분류할 때마다 점수를 얻습니다. 누적 점수가 높아질수록 수박 하나당 획득 점수가 증가합니다.
+
+| 현재 점수 | 올바른 분류 1회당 점수 |
+| --- | --- |
+| 0점 이상 ~ 99점 이하 | 1점 |
+| 100점 이상 ~ 199점 이하 | 2점 |
+| 200점 이상 | 3점 |
+
+연속으로 올바르게 분류한 횟수는 콤보로 함께 표시됩니다.
+
+## 로컬 실행
 
 ```bash
+npm install
 npm run dev
 ```
 
-## Android APK 만들기
+## Android 빌드
 
-Android Studio를 설치한 뒤 아래 명령으로 웹 게임을 Android 프로젝트에 반영하세요.
+Android SDK와 Java 21 환경에서 웹 게임을 Android 프로젝트에 반영합니다.
 
 ```bash
 npm run android:sync
-npm run android:open
 ```
 
-Android Studio에서 `Build > Build APK(s)`를 선택하면 테스트용 APK가 생성됩니다.
-스토어 배포용은 `Build > Generate Signed Bundle / APK > APK`에서 서명 키를 사용해 생성하세요.
+연결된 Android 기기에서 실행하려면 다음 명령을 사용합니다.
 
-APK는 보통 다음 위치에 생성됩니다.
-
-```text
-android/app/build/outputs/apk/debug/app-debug.apk
+```bash
+npx cap run android
 ```
 
-앱 ID는 `com.watermelonsorter.game`이며, Play 스토어 출시 전에 실제 소유 도메인에 맞게 `capacitor.config.ts`에서 확정하세요.
+Google Play 배포용으로는 서명된 Android App Bundle(`.aab`)이 필요합니다. 앱 ID는 `com.watermelonsorter.game`입니다.
