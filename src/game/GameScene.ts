@@ -6,6 +6,8 @@ type GameAssets = {
   background: string;
   good: string;
   rotten: string;
+  theme: string;
+  sortEffect: string;
 };
 
 type SceneOptions = {
@@ -14,8 +16,13 @@ type SceneOptions = {
   onReady: () => void;
 };
 
-// Ten 70px sprites overlap by 41px so the belt reads as one busy, layered flow.
-const WATERMELON_Y = [70, 99, 128, 157, 186, 215, 244, 273, 302, 331];
+type VolumeAdjustableSound = Phaser.Sound.BaseSound & {
+  setVolume?: (value: number) => unknown;
+};
+
+// Keep the original sprite size while ending the queue before the conveyor roller.
+const WATERMELON_SIZE = 70;
+const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
 
 export class GameScene extends Phaser.Scene {
@@ -28,11 +35,13 @@ export class GameScene extends Phaser.Scene {
   private resolved = true;
   private ready = false;
   private playing = false;
+  private musicMuted = false;
   private queue: WatermelonType[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
   private watermelonSprites: Phaser.GameObjects.Image[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
+  private backgroundMusic?: VolumeAdjustableSound;
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -45,6 +54,8 @@ export class GameScene extends Phaser.Scene {
     this.load.image("conveyor-background", this.assets.background);
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
+    this.load.audio("watermelon-theme", this.assets.theme);
+    this.load.audio("sorting-effect", this.assets.sortEffect);
   }
 
   create() {
@@ -52,18 +63,30 @@ export class GameScene extends Phaser.Scene {
     const textResolution = Math.min(window.devicePixelRatio || 1, 2);
     this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
 
-    this.scoreText = this.add.text(16, 24, "SCORE 0", {
-      fontFamily: "Arial",
-      fontSize: "15px",
-      color: "#222222",
+    this.scoreText = this.add.text(76, 300, "SCORE\n0", {
+      fontFamily: '"DosStory", monospace',
+      fontSize: "18px",
+      color: "#26733a",
       fontStyle: "bold",
-    }).setOrigin(0, 0.5).setResolution(textResolution);
-    this.comboText = this.add.text(width - 16, 24, "COMBO ×0", {
-      fontFamily: "Arial",
-      fontSize: "15px",
-      color: "#222222",
+      align: "center",
+      lineSpacing: 5,
+      stroke: "#ffffff",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
+    this.comboText = this.add.text(width - 76, 300, "COMBO\n×0", {
+      fontFamily: '"DosStory", monospace',
+      fontSize: "18px",
+      color: "#b55b2d",
       fontStyle: "bold",
-    }).setOrigin(1, 0.5).setResolution(textResolution);
+      align: "center",
+      lineSpacing: 5,
+      stroke: "#ffffff",
+      strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
+    this.backgroundMusic = this.sound.add("watermelon-theme", {
+      loop: true,
+      volume: this.musicMuted ? 0 : 0.35,
+    }) as VolumeAdjustableSound;
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanUp, this);
     this.ready = true;
@@ -73,24 +96,38 @@ export class GameScene extends Phaser.Scene {
   begin(): boolean {
     if (!this.ready) return false;
 
+    if (this.watermelonSprites.length === 0) this.preview();
+    this.playing = true;
+    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
+    this.startTimer();
+    return true;
+  }
+
+  preview(): boolean {
+    if (!this.ready) return false;
+
     this.roundTimer?.remove(false);
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
     this.score = 0;
     this.combo = 0;
-    this.scoreText?.setText("SCORE 0");
-    this.comboText?.setText("COMBO ×0");
+    this.scoreText?.setText("SCORE\n0");
+    this.comboText?.setText("COMBO\n×0");
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomType());
-    this.playing = true;
     this.createQueueSprites();
-    this.startTimer();
     return true;
+  }
+
+  setMusicMuted(muted: boolean) {
+    this.musicMuted = muted;
+    this.backgroundMusic?.setVolume?.(muted ? 0 : 0.35);
   }
 
   sort(direction: Direction) {
     if (!this.playing || this.resolved) return;
     this.resolved = true;
     this.roundTimer?.remove(false);
+    this.sound.play("sorting-effect", { volume: 0.55 });
 
     if (direction !== expectedDirection(this.activeType)) {
       this.finish("wrong");
@@ -99,8 +136,8 @@ export class GameScene extends Phaser.Scene {
 
     this.score += pointsForCorrectSort(this.score);
     this.combo += 1;
-    this.scoreText?.setText(`SCORE ${this.score}`);
-    this.comboText?.setText(`COMBO ×${this.combo}`);
+    this.scoreText?.setText(`SCORE\n${this.score}`);
+    this.comboText?.setText(`COMBO\n×${this.combo}`);
 
     this.advanceQueue();
     this.time.delayedCall(SORT_TRANSITION_MS, () => {
@@ -111,7 +148,7 @@ export class GameScene extends Phaser.Scene {
   private createQueueSprites() {
     this.watermelonSprites = this.queue.map((type, index) =>
       this.add.image(this.scale.width / 2, WATERMELON_Y[index], `watermelon-${type}`)
-        .setDisplaySize(70, 70)
+        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
         .setDepth(index + 2),
     );
     this.activeType = this.queue[this.queue.length - 1];
@@ -123,8 +160,8 @@ export class GameScene extends Phaser.Scene {
 
     const nextType = this.randomType();
     this.queue.unshift(nextType);
-    const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - 35, `watermelon-${nextType}`)
-      .setDisplaySize(70, 70)
+    const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - WATERMELON_SIZE / 2, `watermelon-${nextType}`)
+      .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
       .setAlpha(0.82)
       .setDepth(2);
     this.watermelonSprites.unshift(incoming);
@@ -158,11 +195,14 @@ export class GameScene extends Phaser.Scene {
   private finish(reason: GameOverReason) {
     this.playing = false;
     this.roundTimer?.remove(false);
+    this.backgroundMusic?.stop();
     this.onGameOver({ score: this.score, combo: this.combo, reason });
   }
 
   private cleanUp() {
     this.playing = false;
     this.roundTimer?.remove(false);
+    this.backgroundMusic?.destroy();
+    this.backgroundMusic = undefined;
   }
 }
