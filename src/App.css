@@ -14,6 +14,7 @@ body { margin: 0; }
 .app-shell { width: 100%; min-height: 100vh; padding: 28px 20px 40px; background: #fff; }
 .app-shell, .app-shell button { font-family: "DosStory", ui-monospace, monospace !important; }
 .app-shell-start { display: flex; padding: 0; align-items: center; justify-content: center; background: #fff; }
+.app-shell-countdown { display: flex; padding: 0 20px 24px; align-items: center; justify-content: center; background: #fff; }
 .app-shell-playing { display: flex; padding: 0 20px 24px; align-items: center; justify-content: center; background: #fff; }
 .app-shell-result { display: flex; padding: 0; align-items: center; justify-content: center; background: #fff; }
 .game-header { max-width: 440px; margin: 8px auto 24px; padding: 14px; text-align: center; border: 3px solid #1b1f25; background: #fff; box-shadow: 5px 5px 0 #1b1f25; }
@@ -30,15 +31,18 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .market-mute-button { position: absolute; z-index: 3; right: 18px; bottom: 18px; display: grid; width: 50px; height: 50px; padding: 0; place-items: center; border: 3px solid #26343d; border-radius: 0; color: #27943f; background: rgba(255, 255, 255, .9); box-shadow: 4px 4px 0 #26343d; font-size: 30px; line-height: 1; cursor: pointer; }
 .market-mute-button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #26343d; }
 .market-mute-button[aria-pressed="true"]::after { position: absolute; width: 35px; height: 4px; content: ""; background: #e5484d; transform: rotate(-45deg); }
+.game-countdown { position: absolute; z-index: 30; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.game-countdown-number { margin: 0; color: #27943f; font-size: clamp(144px, 42vw, 220px); font-weight: 900; line-height: .8; text-shadow: -4px -4px 0 #fff, 4px -4px 0 #fff, -4px 4px 0 #fff, 4px 4px 0 #fff, 0 8px 0 #fff; animation: game-countdown-pop 1s ease-out both; }
 @keyframes market-title-wave { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
-@media (prefers-reduced-motion: reduce) { .market-title-character { animation: none; } }
+@keyframes game-countdown-pop { from { opacity: 0; transform: scale(.45); } 35% { opacity: 1; transform: scale(1.12); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .market-title-character, .game-countdown-number { animation: none; } }
 .pixel-action > button, .share-button-wrap > button, .home-button-wrap > button { width: 100%; min-height: 52px; border: 3px solid #1b1f25 !important; border-radius: 0 !important; box-shadow: 5px 5px 0 #1b1f25; font-family: inherit; font-weight: 900; letter-spacing: .4px; }
 .pixel-action > button { color: #fff !important; background: #3182f6 !important; }.pixel-action > button:active, .share-button-wrap > button:active, .home-button-wrap > button:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #1b1f25; }
 .share-button-wrap, .home-button-wrap { margin-top: 15px; }.share-button-wrap > button, .home-button-wrap > button { color: #1b1f25 !important; background: #fff !important; }
 .game-area { position: relative; width: 100%; max-width: 440px; margin: 0 auto; }
 .game-area-hidden { position: fixed; left: -10000px; top: 0; width: 400px; pointer-events: none; visibility: hidden; }
 .game-canvas { overflow: hidden; border: 3px solid #1b1f25; border-radius: 0; background: #f7f5f0; box-shadow: 7px 7px 0 #1b1f25; }
-.app-shell-playing .game-canvas { border: 0; background: #fff; box-shadow: none; }
+.app-shell-playing .game-canvas, .app-shell-countdown .game-canvas { border: 0; background: #fff; box-shadow: none; }
 .game-canvas canvas { display: block; width: 100% !important; height: auto !important; }
 .controls { position: absolute; right: 4%; bottom: 20%; left: 4%; display: grid; grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr); gap: 12px; align-items: end; }
 .control-button { display: grid; width: 100%; min-height: 68px; padding: 6px; place-items: center; border: 4px solid #26343d; border-radius: 0; color: #26343d; background: #f4f1df; box-shadow: inset 4px 4px 0 #fff, inset -4px -4px 0 #9ba3a0, 0 6px 0 #26343d; font-family: inherit; font-weight: 900; cursor: pointer; }

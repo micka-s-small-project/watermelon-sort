@@ -96,6 +96,16 @@ export class GameScene extends Phaser.Scene {
   begin(): boolean {
     if (!this.ready) return false;
 
+    if (this.watermelonSprites.length === 0) this.preview();
+    this.playing = true;
+    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
+    this.startTimer();
+    return true;
+  }
+
+  preview(): boolean {
+    if (!this.ready) return false;
+
     this.roundTimer?.remove(false);
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
@@ -104,10 +114,7 @@ export class GameScene extends Phaser.Scene {
     this.scoreText?.setText("SCORE\n0");
     this.comboText?.setText("COMBO\n×0");
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomType());
-    this.playing = true;
-    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
     this.createQueueSprites();
-    this.startTimer();
     return true;
   }
 
