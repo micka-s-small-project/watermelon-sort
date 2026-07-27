@@ -12,6 +12,9 @@ coverage/
 .env.*
 !.env.example
 
+# Local Android signing credentials
+android/key.properties
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
