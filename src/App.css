@@ -61,7 +61,7 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .app-shell-en .market-title-line:first-child { margin-bottom: 7px; font-size: 1em; }
 .app-shell-en .market-result-title { font-size: clamp(44px, 12vw, 56px); line-height: .88; letter-spacing: 0; }
 .market-result-board { position: absolute; z-index: 2; top: 37%; right: 20%; left: 20%; display: flex; min-height: 26%; padding: 18px 8px; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.market-result-score { display: block; color: #9a5c2f; font-size: clamp(62px, 19vw, 88px); line-height: .95; letter-spacing: 1px; text-shadow: 2px 2px 0 #f8e8c2; }
+.market-result-score { display: block; color: #9a5c2f; font-size: clamp(46px, 14vw, 60px); line-height: .95; letter-spacing: 1px; white-space: nowrap; text-shadow: 2px 2px 0 #f8e8c2; }
 .market-result-reason { margin: 30px 0 0; color: #745032; font-size: clamp(16px, 4.6vw, 21px); line-height: 1.2; letter-spacing: .4px; }
 .market-result-actions { position: absolute; z-index: 2; right: 6%; bottom: 6%; left: 6%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
 .market-result-actions button { display: flex; min-height: 58px; padding: 5px 3px; align-items: center; justify-content: center; border: 3px solid #26343d; border-radius: 0; color: #26343d; background: #f4f1df; box-shadow: inset 3px 3px 0 #fff, inset -3px -3px 0 #9ba3a0, 0 5px 0 #26343d; font-family: inherit; font-size: clamp(13px, 4vw, 18px); line-height: 1.05; cursor: pointer; }
