@@ -2,16 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { GameCanvas, type GameController } from "./components/GameCanvas";
 import { GameControls } from "./components/GameControls";
 import { saveBestScore } from "./lib/highScore";
+import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
 import type { Direction, GameResult } from "./game/types";
 import "./App.css";
 
 type Screen = "start" | "countdown" | "playing" | "result";
-const MARKET_TITLE_LINES = ["수박수박", "수박박수박"] as const;
-const RESULT_TITLE = "노 동 결 과!";
 const COUNTDOWN_SECONDS = 3;
 
 function App() {
+  const [locale] = useState(getBrowserLocale);
+  const copy = getCopy(locale);
   const controllerRef = useRef<GameController>(null);
   const homeThemeRef = useRef<HTMLAudioElement | null>(null);
   const [screen, setScreen] = useState<Screen>("start");
@@ -32,6 +33,11 @@ function App() {
       homeThemeRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.title = copy.documentTitle;
+  }, [copy.documentTitle, locale]);
 
   useEffect(() => {
     const audio = homeThemeRef.current;
@@ -120,9 +126,9 @@ function App() {
 
   async function handleShare() {
     if (!result) return;
-    const outcome = await shareScore(result.score);
+    const outcome = await shareScore(copy.documentTitle, copy.shareText(result.score));
     setShareMessage(
-      outcome === "shared" ? "Score shared!" : outcome === "copied" ? "Score copied to clipboard!" : "Sharing is unavailable on this device.",
+      outcome === "shared" ? copy.shared : outcome === "copied" ? copy.copied : copy.sharingUnavailable,
     );
   }
 
@@ -130,7 +136,7 @@ function App() {
   const toggleMusic = () => setIsMusicMuted((muted) => !muted);
 
   return (
-    <main className={`app-shell app-shell-${screen}`}>
+    <main className={`app-shell app-shell-${screen} app-shell-${locale}`}>
       {screen === "start" && (
         <section
           className="market-home"
@@ -138,7 +144,7 @@ function App() {
           style={{ backgroundImage: `url(${import.meta.env.BASE_URL}assets/game/supermarket-home-no-sign-v3.png)` }}
         >
           <h1 id="market-title" className="market-title">
-            {MARKET_TITLE_LINES.map((line, lineIndex) => (
+            {copy.marketTitleLines.map((line, lineIndex) => (
               <span className="market-title-line" key={line}>
                 {Array.from(line).map((character, characterIndex) => (
                   <span
@@ -152,11 +158,11 @@ function App() {
               </span>
             ))}
           </h1>
-          <button className="market-start-button" type="button" onClick={startGame}>수박 분류하기</button>
+          <button className="market-start-button" type="button" onClick={startGame}>{copy.startGame}</button>
           <button
             className="market-mute-button"
             type="button"
-            aria-label={isMusicMuted ? "배경 음악 켜기" : "배경 음악 끄기"}
+            aria-label={isMusicMuted ? copy.unmuteMusic : copy.muteMusic}
             aria-pressed={isMusicMuted}
             onClick={toggleMusic}
           >
@@ -165,42 +171,46 @@ function App() {
         </section>
       )}
 
-      <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label="Watermelon sorting game">
+      <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label={copy.gameAreaLabel}>
         <GameCanvas ref={controllerRef} onGameOver={handleGameOver} />
         {screen === "countdown" && (
-          <div className="game-countdown" aria-label="게임 시작 카운트다운">
+          <div className="game-countdown" aria-label={copy.countdownLabel}>
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
-        {screen === "playing" && <GameControls onSort={sort} />}
+        {screen === "playing" && <GameControls copy={copy} onSort={sort} />}
       </section>
 
       {screen === "result" && result && (
         <section
           className="market-result"
-          aria-label="Labor result"
+          aria-label={copy.resultLabel}
           style={{ backgroundImage: `url(${import.meta.env.BASE_URL}assets/game/game-over-market-background-v3.png)` }}
         >
           <h1 className="market-result-title">
-            {Array.from(RESULT_TITLE).map((character, index) => (
-              <span
-                className="market-result-title-character"
-                key={`${character}-${index}`}
-                style={{ animationDelay: `${index * 80}ms` }}
-              >
-                {character}
+            {copy.resultTitleLines.map((line, lineIndex) => (
+              <span className="market-result-title-line" key={line}>
+                {Array.from(line).map((character, characterIndex) => (
+                  <span
+                    className="market-result-title-character"
+                    key={`${line}-${characterIndex}`}
+                    style={{ animationDelay: `${(lineIndex * line.length + characterIndex) * 80}ms` }}
+                  >
+                    {character}
+                  </span>
+                ))}
               </span>
             ))}
           </h1>
           <div className="market-result-board">
-            <strong className="market-result-score">{result.score}점</strong>
-            <p className="market-result-reason">해고 사유 : {result.reason === "timeout" ? "too slow" : "wrong belt"}</p>
+            <strong className="market-result-score">{copy.score(result.score)}</strong>
+            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : copy.wrongBeltReason}</p>
           </div>
           {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
           <div className="market-result-actions">
-            <button type="button" onClick={startGame}>다시하기</button>
-            <button type="button" onClick={handleShare}>공유하기</button>
-            <button type="button" onClick={goHome}>메인메뉴</button>
+            <button type="button" onClick={startGame}>{copy.retry}</button>
+            <button type="button" onClick={handleShare}>{copy.share}</button>
+            <button type="button" onClick={goHome}>{copy.home}</button>
           </div>
         </section>
       )}

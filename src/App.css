@@ -56,6 +56,10 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .market-result { position: relative; width: min(100%, 440px); aspect-ratio: 2 / 3; overflow: hidden; background-color: #dff3ff; background-position: center; background-size: cover; background-repeat: no-repeat; }
 .market-result-title { position: absolute; z-index: 2; top: 7%; right: 4%; left: 4%; margin: 0; color: #27943f; font-size: clamp(52px, 14vw, 66px); line-height: 1; letter-spacing: 2px; text-align: center; text-shadow: -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 3px 3px 0 #fff, 0 5px 0 #fff; white-space: pre; }
 .market-result-title-character { position: relative; display: inline-block; animation: market-title-wave 1.3s ease-in-out infinite; }
+.market-result-title-line { display: block; white-space: nowrap; }
+.app-shell-en .market-title { right: 4%; left: 4%; font-size: clamp(40px, 11vw, 54px); line-height: .9; letter-spacing: 0; }
+.app-shell-en .market-title-line:first-child { margin-bottom: 7px; font-size: 1em; }
+.app-shell-en .market-result-title { font-size: clamp(44px, 12vw, 56px); line-height: .88; letter-spacing: 0; }
 .market-result-board { position: absolute; z-index: 2; top: 37%; right: 20%; left: 20%; display: flex; min-height: 26%; padding: 18px 8px; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .market-result-score { display: block; color: #9a5c2f; font-size: clamp(62px, 19vw, 88px); line-height: .95; letter-spacing: 1px; text-shadow: 2px 2px 0 #f8e8c2; }
 .market-result-reason { margin: 30px 0 0; color: #745032; font-size: clamp(16px, 4.6vw, 21px); line-height: 1.2; letter-spacing: .4px; }
