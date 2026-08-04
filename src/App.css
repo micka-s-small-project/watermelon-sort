@@ -49,9 +49,11 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .control-button:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #1b1f25; }
 .sort-control-button span { font-size: 40px; line-height: .8; }
 .good-button { color: #27943f; }.rotten-button { color: #a85f2d; }
-.center-control-button { min-height: 64px; color: #6b7684; cursor: default; }
-.center-control-button:disabled { opacity: .82; }
-.center-control-button span { font-size: 21px; line-height: 1; }
+.center-control-button { min-height: 64px; color: #6b7684; cursor: default; touch-action: none; }
+.center-control-button:disabled { opacity: .52; }
+.center-control-button:not(:disabled) { color: #26343d; cursor: grab; }
+.center-control-button:active:not(:disabled) { cursor: grabbing; }
+.center-control-button img { display: block; width: 37px; height: 37px; object-fit: contain; image-rendering: pixelated; }
 .center-control-button small { display: block; margin-top: 3px; font-size: 9px; letter-spacing: .5px; }
 .market-result { position: relative; width: min(100%, 440px); aspect-ratio: 2 / 3; overflow: hidden; background-color: #dff3ff; background-position: center; background-size: cover; background-repeat: no-repeat; }
 .market-result-title { position: absolute; z-index: 2; top: 7%; right: 4%; left: 4%; margin: 0; color: #27943f; font-size: clamp(52px, 14vw, 66px); line-height: 1; letter-spacing: 2px; text-align: center; text-shadow: -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 3px 3px 0 #fff, 0 5px 0 #fff; white-space: pre; }

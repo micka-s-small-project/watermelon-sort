@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedDirection, pointsForCorrectSort, ROUND_LIMIT_MS } from "./rules";
+import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS, trashSpawnChance } from "./rules";
 
 describe("watermelon game rules", () => {
   it("routes good watermelons left and rotten ones right", () => {
@@ -9,6 +9,16 @@ describe("watermelon game rules", () => {
 
   it("keeps every round under 1.5 seconds", () => {
     expect(ROUND_LIMIT_MS).toBe(1_500);
+  });
+
+  it("increases trash bag frequency as the combo grows", () => {
+    expect(trashSpawnChance(0)).toBe(0.03);
+    expect(trashSpawnChance(10)).toBe(0.08);
+    expect(trashSpawnChance(25)).toBe(0.15);
+    expect(randomWatermelonType(0, 0.02)).toBe("trash");
+    expect(randomWatermelonType(0, 0.1)).toBe("good");
+    expect(randomWatermelonType(25, 0.1)).toBe("trash");
+    expect(randomWatermelonType(25, 0.9)).toBe("rotten");
   });
 
   it("increases points at the 100 and 200 score thresholds", () => {
