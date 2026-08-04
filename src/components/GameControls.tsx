@@ -6,14 +6,27 @@ type Props = {
   activeItem: WatermelonType | null;
   copy: GameCopy;
   onDiscardTrash: () => void;
+  onTapGolden: () => void;
   onSort: (direction: Direction) => void;
 };
 
 const SWIPE_DOWN_DISTANCE = 36;
 
-export function GameControls({ activeItem, copy, onDiscardTrash, onSort }: Props) {
+export function GameControls({ activeItem, copy, onDiscardTrash, onTapGolden, onSort }: Props) {
   const pointerStartYRef = useRef<number | null>(null);
   const trashIsActive = activeItem === "trash";
+  const goldenIsActive = activeItem === "golden";
+
+  function handleCenterClick() {
+    if (window.matchMedia("(pointer: fine)").matches) onDiscardTrash();
+  }
+
+  function handleCenterPointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+    // Phaser owns the live item state. Always forward the press so a delayed React
+    // render can never make a currently active golden watermelon miss input.
+    onTapGolden();
+    if (trashIsActive) startDiscard(event);
+  }
 
   function startDiscard(event: React.PointerEvent<HTMLButtonElement>) {
     pointerStartYRef.current = event.clientY;
@@ -34,15 +47,15 @@ export function GameControls({ activeItem, copy, onDiscardTrash, onSort }: Props
 
     <button
       type="button"
-      className="control-button center-control-button"
-      aria-label={trashIsActive ? copy.discardTrash : copy.trashControlIdle}
-      disabled={!trashIsActive}
-      onPointerDown={startDiscard}
-      onPointerUp={finishDiscard}
+      className={`control-button center-control-button ${goldenIsActive ? "golden-control-button" : ""} ${!trashIsActive && !goldenIsActive ? "center-control-button-idle" : ""}`}
+      aria-label={goldenIsActive ? copy.tapGolden : trashIsActive ? copy.discardTrash : copy.specialControlIdle}
+      onClick={handleCenterClick}
+      onPointerDown={handleCenterPointerDown}
+      onPointerUp={trashIsActive ? finishDiscard : undefined}
       onPointerCancel={() => { pointerStartYRef.current = null; }}
     >
-      <img src={`${import.meta.env.BASE_URL}assets/game/trash-bag-8bit.png`} alt="" aria-hidden="true" />
-      <small>{trashIsActive ? copy.swipeDown : copy.trashBag}</small>
+      <img src={`${import.meta.env.BASE_URL}assets/game/${goldenIsActive ? "watermelon-golden-8bit.png" : "trash-bag-8bit.png"}`} alt="" aria-hidden="true" />
+      <small>{goldenIsActive ? copy.tap : trashIsActive ? copy.swipeDown : copy.trashBag}</small>
     </button>
 
     <button type="button" aria-label={copy.rottenWatermelonRight} className="control-button sort-control-button rotten-button" onClick={() => onSort("right")}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS, trashSpawnChance } from "./rules";
+import { expectedDirection, GOLDEN_SPAWN_CHANCE, pointsForCorrectSort, pointsForGoldenTap, randomWatermelonType, ROUND_LIMIT_MS, trashSpawnChance } from "./rules";
 
 describe("watermelon game rules", () => {
   it("routes good watermelons left and rotten ones right", () => {
@@ -15,6 +15,7 @@ describe("watermelon game rules", () => {
     expect(trashSpawnChance(0)).toBe(0.03);
     expect(trashSpawnChance(10)).toBe(0.08);
     expect(trashSpawnChance(25)).toBe(0.15);
+    expect(randomWatermelonType(0, 0.009)).toBe("golden");
     expect(randomWatermelonType(0, 0.02)).toBe("trash");
     expect(randomWatermelonType(0, 0.1)).toBe("good");
     expect(randomWatermelonType(25, 0.1)).toBe("trash");
@@ -27,5 +28,12 @@ describe("watermelon game rules", () => {
     expect(pointsForCorrectSort(100)).toBe(2);
     expect(pointsForCorrectSort(199)).toBe(2);
     expect(pointsForCorrectSort(200)).toBe(3);
+  });
+
+  it("uses the standard score tier for every golden watermelon tap", () => {
+    expect(GOLDEN_SPAWN_CHANCE).toBe(0.01);
+    expect(pointsForGoldenTap(0)).toBe(1);
+    expect(pointsForGoldenTap(100)).toBe(2);
+    expect(pointsForGoldenTap(200)).toBe(3);
   });
 });

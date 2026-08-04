@@ -22,9 +22,14 @@ export type GameCopy = {
   healthyWatermelonLeft: string;
   rottenWatermelonRight: string;
   discardTrash: string;
+  goldenEgg: string;
+  goldenMiss: string;
+  goldenMissReason: string;
   swipeDown: string;
   trashBag: string;
-  trashControlIdle: string;
+  specialControlIdle: string;
+  tap: string;
+  tapGolden: string;
   shareText: (score: number) => string;
 };
 
@@ -51,9 +56,14 @@ const COPY: Record<SupportedLocale, GameCopy> = {
     healthyWatermelonLeft: "Send healthy watermelon left",
     rottenWatermelonRight: "Send rotten watermelon right",
     discardTrash: "Swipe down to discard the trash bag",
+    goldenEgg: "SILLY!",
+    goldenMiss: "MISS!",
+    goldenMissReason: "Reason: Missed a golden opportunity.",
     swipeDown: "SWIPE ↓",
     trashBag: "TRASH",
-    trashControlIdle: "Wait for a trash bag",
+    specialControlIdle: "Wait for a special item",
+    tap: "TAP!",
+    tapGolden: "Tap the golden watermelon",
     shareText: (score) => `I sorted ${score} watermelons in Watermelonlonlonmelon! Can you beat my score?`,
   },
   ko: {
@@ -78,9 +88,14 @@ const COPY: Record<SupportedLocale, GameCopy> = {
     healthyWatermelonLeft: "싱싱한 수박을 왼쪽으로 보내기",
     rottenWatermelonRight: "썩은 수박을 오른쪽으로 보내기",
     discardTrash: "아래로 밀어 쓰레기봉투 버리기",
+    goldenEgg: "바보!",
+    goldenMiss: "MISS!",
+    goldenMissReason: "해고 사유: 천금같은 기회를 놓친",
     swipeDown: "아래로 밀기",
     trashBag: "쓰레기",
-    trashControlIdle: "쓰레기봉투를 기다리는 중",
+    specialControlIdle: "특수 아이템을 기다리는 중",
+    tap: "연타!",
+    tapGolden: "황금 수박 연타하기",
     shareText: (score) => `수박수박수박박수박에서 ${score}점을 기록했어요! 내 점수를 넘을 수 있나요?`,
   },
 };

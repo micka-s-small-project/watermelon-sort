@@ -8,21 +8,31 @@ export type GameController = {
   start: () => void;
   sort: (direction: Direction) => void;
   discardTrash: () => void;
+  tapGolden: () => void;
   setMusicMuted: (muted: boolean) => void;
 };
 
-type Props = { onActiveItemChange: (type: WatermelonType) => void; onGameOver: (result: GameResult) => void };
+type Props = {
+  goldenEggLabel: string;
+  goldenMissLabel: string;
+  onActiveItemChange: (type: WatermelonType) => void;
+  onGameOver: (result: GameResult) => void;
+};
 
-export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onActiveItemChange, onGameOver }, ref) {
+export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ goldenEggLabel, goldenMissLabel, onActiveItemChange, onGameOver }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GameScene>();
   const callbackRef = useRef(onGameOver);
   const activeItemCallbackRef = useRef(onActiveItemChange);
+  const goldenEggLabelRef = useRef(goldenEggLabel);
+  const goldenMissLabelRef = useRef(goldenMissLabel);
   const pendingPreviewRef = useRef(false);
   const pendingStartRef = useRef(false);
   const musicMutedRef = useRef(false);
   callbackRef.current = onGameOver;
   activeItemCallbackRef.current = onActiveItemChange;
+  goldenEggLabelRef.current = goldenEggLabel;
+  goldenMissLabelRef.current = goldenMissLabel;
 
   useImperativeHandle(ref, () => ({
     preview: () => {
@@ -33,6 +43,7 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
     },
     sort: (direction) => sceneRef.current?.sort(direction),
     discardTrash: () => sceneRef.current?.discardTrash(),
+    tapGolden: () => sceneRef.current?.tapGolden(),
     setMusicMuted: (muted) => {
       musicMutedRef.current = muted;
       sceneRef.current?.setMusicMuted(muted);
@@ -60,11 +71,14 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
           good: `${baseUrl}assets/game/watermelon-good-8bit.png`,
           rotten: `${baseUrl}assets/game/watermelon-rotten-8bit.png`,
           trash: `${baseUrl}assets/game/trash-bag-8bit.png`,
+          golden: `${baseUrl}assets/game/watermelon-golden-8bit.png`,
           theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
           sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
         },
         onGameOver: (result) => callbackRef.current(result),
         onActiveItemChange: (type) => activeItemCallbackRef.current(type),
+        goldenEggLabel: goldenEggLabelRef.current,
+        goldenMissLabel: goldenMissLabelRef.current,
         onReady: () => {
           scene.setMusicMuted(musicMutedRef.current);
           if (pendingPreviewRef.current) {

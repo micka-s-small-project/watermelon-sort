@@ -99,6 +99,7 @@ function App() {
       }
       if (event.key === "ArrowDown") {
         event.preventDefault();
+        controllerRef.current?.tapGolden();
         controllerRef.current?.discardTrash();
       }
     };
@@ -177,13 +178,19 @@ function App() {
       )}
 
       <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label={copy.gameAreaLabel}>
-        <GameCanvas ref={controllerRef} onActiveItemChange={setActiveItem} onGameOver={handleGameOver} />
+        <GameCanvas
+          ref={controllerRef}
+          goldenEggLabel={copy.goldenEgg}
+          goldenMissLabel={copy.goldenMiss}
+          onActiveItemChange={setActiveItem}
+          onGameOver={handleGameOver}
+        />
         {screen === "countdown" && (
           <div className="game-countdown" aria-label={copy.countdownLabel}>
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
-        {screen === "playing" && <GameControls activeItem={activeItem} copy={copy} onDiscardTrash={() => controllerRef.current?.discardTrash()} onSort={sort} />}
+        {screen === "playing" && <GameControls activeItem={activeItem} copy={copy} onDiscardTrash={() => controllerRef.current?.discardTrash()} onTapGolden={() => controllerRef.current?.tapGolden()} onSort={sort} />}
       </section>
 
       {screen === "result" && result && (
@@ -209,7 +216,7 @@ function App() {
           </h1>
           <div className="market-result-board">
             <strong className="market-result-score">{copy.score(result.score)}</strong>
-            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : copy.wrongBeltReason}</p>
+            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : result.reason === "goldenMiss" ? copy.goldenMissReason : copy.wrongBeltReason}</p>
           </div>
           {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
           <div className="market-result-actions">
