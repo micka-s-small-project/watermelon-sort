@@ -1,11 +1,12 @@
 import Phaser from "phaser";
-import { expectedDirection, pointsForCorrectSort, ROUND_LIMIT_MS } from "./rules";
+import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS } from "./rules";
 import type { Direction, GameOverReason, GameResult, WatermelonType } from "./types";
 
 type GameAssets = {
   background: string;
   good: string;
   rotten: string;
+  trash: string;
   theme: string;
   sortEffect: string;
 };
@@ -13,6 +14,7 @@ type GameAssets = {
 type SceneOptions = {
   assets: GameAssets;
   onGameOver: (result: GameResult) => void;
+  onActiveItemChange: (type: WatermelonType) => void;
   onReady: () => void;
 };
 
@@ -28,6 +30,7 @@ const SORT_TRANSITION_MS = 100;
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
   private readonly onGameOver: (result: GameResult) => void;
+  private readonly onActiveItemChange: (type: WatermelonType) => void;
   private readonly onReady: () => void;
   private score = 0;
   private combo = 0;
@@ -47,6 +50,7 @@ export class GameScene extends Phaser.Scene {
     super("watermelon-game");
     this.assets = options.assets;
     this.onGameOver = options.onGameOver;
+    this.onActiveItemChange = options.onActiveItemChange;
     this.onReady = options.onReady;
   }
 
@@ -54,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.load.image("conveyor-background", this.assets.background);
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
+    this.load.image("watermelon-trash", this.assets.trash);
     this.load.audio("watermelon-theme", this.assets.theme);
     this.load.audio("sorting-effect", this.assets.sortEffect);
   }
@@ -129,11 +134,23 @@ export class GameScene extends Phaser.Scene {
     this.roundTimer?.remove(false);
     this.sound.play("sorting-effect", { volume: 0.55 });
 
-    if (direction !== expectedDirection(this.activeType)) {
+    if (this.activeType === "trash" || direction !== expectedDirection(this.activeType)) {
       this.finish("wrong");
       return;
     }
 
+    this.resolveCorrectItem();
+  }
+
+  discardTrash() {
+    if (!this.playing || this.resolved || this.activeType !== "trash") return;
+    this.resolved = true;
+    this.roundTimer?.remove(false);
+    this.sound.play("sorting-effect", { volume: 0.55 });
+    this.resolveCorrectItem();
+  }
+
+  private resolveCorrectItem() {
     this.score += pointsForCorrectSort(this.score);
     this.combo += 1;
     this.scoreText?.setText(`SCORE\n${this.score}`);
@@ -151,7 +168,7 @@ export class GameScene extends Phaser.Scene {
         .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
         .setDepth(index + 2),
     );
-    this.activeType = this.queue[this.queue.length - 1];
+    this.setActiveType(this.queue[this.queue.length - 1]);
   }
 
   private advanceQueue() {
@@ -176,7 +193,7 @@ export class GameScene extends Phaser.Scene {
         ease: "Sine.easeOut",
       });
     });
-    this.activeType = this.queue[this.queue.length - 1];
+    this.setActiveType(this.queue[this.queue.length - 1]);
   }
 
   private startTimer() {
@@ -189,7 +206,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   private randomType(): WatermelonType {
-    return Math.random() < 0.5 ? "good" : "rotten";
+    return randomWatermelonType(this.combo);
+  }
+
+  private setActiveType(type: WatermelonType) {
+    this.activeType = type;
+    this.onActiveItemChange(type);
   }
 
   private finish(reason: GameOverReason) {
