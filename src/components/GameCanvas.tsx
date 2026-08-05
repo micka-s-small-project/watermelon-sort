@@ -1,25 +1,38 @@
 import Phaser from "phaser";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { GameScene } from "../game/GameScene";
-import type { Direction, GameResult } from "../game/types";
+import type { Direction, GameResult, GameStatus, PerkChoice, StageClear } from "../game/types";
 
 export type GameController = {
   preview: () => void;
   start: () => void;
   sort: (direction: Direction) => void;
+  choosePerk: (perk: string) => void;
+  continueToNextStage: () => void;
   setMusicMuted: (muted: boolean) => void;
 };
 
-type Props = { onGameOver: (result: GameResult) => void };
+type Props = {
+  onGameOver: (result: GameResult) => void;
+  onStatusChange: (status: GameStatus) => void;
+  onPerkChoice: (choice: PerkChoice) => void;
+  onStageClear: (stageClear: StageClear) => void;
+};
 
-export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver }, ref) {
+export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver, onStatusChange, onPerkChoice, onStageClear }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GameScene>();
   const callbackRef = useRef(onGameOver);
+  const statusCallbackRef = useRef(onStatusChange);
+  const perkChoiceCallbackRef = useRef(onPerkChoice);
+  const stageClearCallbackRef = useRef(onStageClear);
   const pendingPreviewRef = useRef(false);
   const pendingStartRef = useRef(false);
   const musicMutedRef = useRef(false);
   callbackRef.current = onGameOver;
+  statusCallbackRef.current = onStatusChange;
+  perkChoiceCallbackRef.current = onPerkChoice;
+  stageClearCallbackRef.current = onStageClear;
 
   useImperativeHandle(ref, () => ({
     preview: () => {
@@ -29,6 +42,8 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
       if (!sceneRef.current?.begin()) pendingStartRef.current = true;
     },
     sort: (direction) => sceneRef.current?.sort(direction),
+    choosePerk: (perk) => sceneRef.current?.choosePerk(perk),
+    continueToNextStage: () => sceneRef.current?.continueToNextStage(),
     setMusicMuted: (muted) => {
       musicMutedRef.current = muted;
       sceneRef.current?.setMusicMuted(muted);
@@ -58,6 +73,9 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
           sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
         },
         onGameOver: (result) => callbackRef.current(result),
+        onStatusChange: (status) => statusCallbackRef.current(status),
+        onPerkChoice: (choice) => perkChoiceCallbackRef.current(choice),
+        onStageClear: (stageClear) => stageClearCallbackRef.current(stageClear),
         onReady: () => {
           scene.setMusicMuted(musicMutedRef.current);
           if (pendingPreviewRef.current) {

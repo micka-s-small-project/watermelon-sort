@@ -1,6 +1,5 @@
 import type { Direction, WatermelonType } from "./types";
 
-export const ROUND_LIMIT_MS = 1_500;
 export function expectedDirection(type: Extract<WatermelonType, "good" | "rotten">): Direction {
   return type === "good" ? "left" : "right";
 }

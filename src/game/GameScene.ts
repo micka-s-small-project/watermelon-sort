@@ -1,6 +1,7 @@
 import Phaser from "phaser";
-import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS } from "./rules";
-import type { Direction, GameOverReason, GameResult, WatermelonType } from "./types";
+import { expectedDirection, pointsForCorrectSort, randomWatermelonType } from "./rules";
+import { getStage, hasNextStage, isStageComplete, isStageMidpoint } from "./stages";
+import type { Direction, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, WatermelonType } from "./types";
 
 type GameAssets = {
   background: string;
@@ -13,6 +14,9 @@ type GameAssets = {
 type SceneOptions = {
   assets: GameAssets;
   onGameOver: (result: GameResult) => void;
+  onStatusChange: (status: GameStatus) => void;
+  onPerkChoice: (choice: PerkChoice) => void;
+  onStageClear: (stageClear: StageClear) => void;
   onReady: () => void;
 };
 
@@ -21,23 +25,31 @@ type VolumeAdjustableSound = Phaser.Sound.BaseSound & {
 };
 
 const WATERMELON_SIZE = 70;
-const ITEM_DISPLAY_SIZE: Record<WatermelonType, number> = {
-  good: WATERMELON_SIZE,
-  rotten: WATERMELON_SIZE,
-};
 const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
+const MAX_CLAIMS = 3;
+const TEMPORARY_PERKS = ["특성 1", "특성 2", "특성 3"] as const;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
   private readonly onGameOver: (result: GameResult) => void;
+  private readonly onStatusChange: (status: GameStatus) => void;
+  private readonly onPerkChoice: (choice: PerkChoice) => void;
+  private readonly onStageClear: (stageClear: StageClear) => void;
   private readonly onReady: () => void;
   private score = 0;
   private combo = 0;
+  private stageIndex = 0;
+  private stageProgress = 0;
+  private claims = 0;
+  private selectedPerks: string[] = [];
+  private midpointChoiceShown = false;
   private activeType: WatermelonType = "good";
   private resolved = true;
   private ready = false;
   private playing = false;
+  private awaitingPerk = false;
+  private awaitingStageTransition = false;
   private musicMuted = false;
   private queue: WatermelonType[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
@@ -50,6 +62,9 @@ export class GameScene extends Phaser.Scene {
     super("watermelon-game");
     this.assets = options.assets;
     this.onGameOver = options.onGameOver;
+    this.onStatusChange = options.onStatusChange;
+    this.onPerkChoice = options.onPerkChoice;
+    this.onStageClear = options.onStageClear;
     this.onReady = options.onReady;
   }
 
@@ -65,14 +80,13 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const textResolution = Math.min(window.devicePixelRatio || 1, 2);
     this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
-
-    this.scoreText = this.add.text(76, 300, "SCORE\n0", {
+    this.scoreText = this.add.text(76, 300, "SCORE 0", {
       fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#26733a", fontStyle: "bold",
-      align: "center", lineSpacing: 5, stroke: "#ffffff", strokeThickness: 3,
+      align: "center", stroke: "#ffffff", strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
-    this.comboText = this.add.text(width - 76, 300, "COMBO\n×0", {
+    this.comboText = this.add.text(width - 76, 300, "COMBO x0", {
       fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#b55b2d", fontStyle: "bold",
-      align: "center", lineSpacing: 5, stroke: "#ffffff", strokeThickness: 3,
+      align: "center", stroke: "#ffffff", strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.backgroundMusic = this.sound.add("watermelon-theme", {
       loop: true, volume: this.musicMuted ? 0 : 0.35,
@@ -85,25 +99,52 @@ export class GameScene extends Phaser.Scene {
 
   begin(): boolean {
     if (!this.ready) return false;
-    if (this.watermelonSprites.length === 0) this.preview();
-    this.playing = true;
-    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
-    this.startTimer();
+    this.preview();
+    this.emitStatus();
+    this.requestPerk("start");
     return true;
   }
 
   preview(): boolean {
     if (!this.ready) return false;
     this.roundTimer?.remove(false);
+    this.playing = false;
+    this.awaitingPerk = false;
+    this.awaitingStageTransition = false;
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
     this.score = 0;
     this.combo = 0;
-    this.scoreText?.setText("SCORE\n0");
-    this.comboText?.setText("COMBO\n×0");
+    this.stageIndex = 0;
+    this.stageProgress = 0;
+    this.claims = 0;
+    this.selectedPerks = [];
+    this.midpointChoiceShown = false;
+    this.scoreText?.setText("SCORE 0");
+    this.comboText?.setText("COMBO x0");
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => randomWatermelonType());
     this.createQueueSprites();
     return true;
+  }
+
+  choosePerk(perk: string) {
+    if (!this.awaitingPerk) return;
+    this.selectedPerks.push(perk);
+    this.awaitingPerk = false;
+    this.playing = true;
+    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
+    this.emitStatus();
+    this.startTimer();
+  }
+
+  continueToNextStage() {
+    if (!this.awaitingStageTransition) return;
+    this.awaitingStageTransition = false;
+    this.stageIndex += 1;
+    this.stageProgress = 0;
+    this.midpointChoiceShown = false;
+    this.emitStatus();
+    this.requestPerk("start");
   }
 
   setMusicMuted(muted: boolean) {
@@ -112,31 +153,85 @@ export class GameScene extends Phaser.Scene {
   }
 
   sort(direction: Direction) {
-    if (!this.playing || this.resolved) return;
+    if (!this.playing || this.resolved || this.awaitingPerk) return;
     this.resolved = true;
     this.roundTimer?.remove(false);
     this.sound.play("sorting-effect", { volume: 0.55 });
 
     if (direction !== expectedDirection(this.activeType)) {
-      this.finish("wrong");
+      this.registerClaim();
       return;
     }
 
     this.score += pointsForCorrectSort(this.score);
     this.combo += 1;
-    this.scoreText?.setText(`SCORE\n${this.score}`);
-    this.comboText?.setText(`COMBO\n×${this.combo}`);
+    this.stageProgress += 1;
+    this.scoreText?.setText(`SCORE ${this.score}`);
+    this.comboText?.setText(`COMBO x${this.combo}`);
+    this.emitStatus();
+
+    if (isStageComplete(this.stageIndex, this.stageProgress)) {
+      this.completeStage();
+      return;
+    }
+    if (!this.midpointChoiceShown && isStageMidpoint(this.stageIndex, this.stageProgress)) {
+      this.midpointChoiceShown = true;
+      this.advanceQueue();
+      this.requestPerk("midpoint");
+      return;
+    }
     this.advanceAndStartNextRound();
   }
 
+  private registerClaim() {
+    this.claims += 1;
+    this.combo = 0;
+    this.comboText?.setText("COMBO x0");
+    this.emitStatus();
+    if (this.claims >= MAX_CLAIMS) {
+      this.finish("claims");
+      return;
+    }
+    this.advanceAndStartNextRound();
+  }
+
+  private completeStage() {
+    if (!hasNextStage(this.stageIndex)) {
+      this.finish("complete");
+      return;
+    }
+    this.playing = false;
+    this.awaitingStageTransition = true;
+    this.roundTimer?.remove(false);
+    this.advanceQueue();
+    this.onStageClear({ completedStageIndex: this.stageIndex, status: this.getStatus() });
+  }
+
+  private requestPerk(phase: PerkChoice["phase"]) {
+    this.playing = false;
+    this.awaitingPerk = true;
+    this.roundTimer?.remove(false);
+    this.onPerkChoice({
+      stageIndex: this.stageIndex,
+      phase,
+      options: TEMPORARY_PERKS,
+    });
+  }
+
   private advanceAndStartNextRound() {
+    this.advanceQueue();
+    this.time.delayedCall(SORT_TRANSITION_MS, () => {
+      if (this.playing) this.startTimer();
+    });
+  }
+
+  private advanceQueue() {
     this.queue.pop();
     this.watermelonSprites.pop()?.destroy();
-
     const nextType = randomWatermelonType();
     this.queue.unshift(nextType);
     const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - WATERMELON_SIZE / 2, `watermelon-${nextType}`)
-      .setDisplaySize(ITEM_DISPLAY_SIZE[nextType], ITEM_DISPLAY_SIZE[nextType])
+      .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
       .setAlpha(0.82)
       .setDepth(2);
     this.watermelonSprites.unshift(incoming);
@@ -146,15 +241,12 @@ export class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: sprite, y: WATERMELON_Y[index], alpha: 1, duration: SORT_TRANSITION_MS, ease: "Sine.easeOut" });
     });
     this.activeType = this.queue[this.queue.length - 1];
-    this.time.delayedCall(SORT_TRANSITION_MS, () => {
-      if (this.playing) this.startTimer();
-    });
   }
 
   private createQueueSprites() {
     this.watermelonSprites = this.queue.map((type, index) =>
       this.add.image(this.scale.width / 2, WATERMELON_Y[index], `watermelon-${type}`)
-        .setDisplaySize(ITEM_DISPLAY_SIZE[type], ITEM_DISPLAY_SIZE[type])
+        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
         .setDepth(index + 2),
     );
     this.activeType = this.queue[this.queue.length - 1];
@@ -162,18 +254,35 @@ export class GameScene extends Phaser.Scene {
 
   private startTimer() {
     this.resolved = false;
-    this.roundTimer = this.time.delayedCall(ROUND_LIMIT_MS, () => {
+    this.roundTimer = this.time.delayedCall(getStage(this.stageIndex).roundLimitMs, () => {
       if (this.resolved || !this.playing) return;
       this.resolved = true;
-      this.finish("timeout");
+      this.registerClaim();
     });
+  }
+
+  private getStatus(): GameStatus {
+    return {
+      stageIndex: this.stageIndex,
+      stageProgress: this.stageProgress,
+      claims: this.claims,
+      score: this.score,
+      combo: this.combo,
+      selectedPerks: this.selectedPerks,
+    };
+  }
+
+  private emitStatus() {
+    this.onStatusChange(this.getStatus());
   }
 
   private finish(reason: GameOverReason) {
     this.playing = false;
+    this.awaitingPerk = false;
+    this.awaitingStageTransition = false;
     this.roundTimer?.remove(false);
     this.backgroundMusic?.stop();
-    this.onGameOver({ score: this.score, combo: this.combo, reason });
+    this.onGameOver({ ...this.getStatus(), reason });
   }
 
   private cleanUp() {
