@@ -101,7 +101,13 @@ function App() {
         event.preventDefault();
         controllerRef.current?.sort("right");
       }
-      if (event.key === "ArrowDown" && gameStatus?.trashCollectorActive) {
+      if (event.key === "ArrowDown" && gameStatus?.goldenWatermelonActive) {
+        event.preventDefault();
+        controllerRef.current?.tapGolden();
+      } else if (event.key === "ArrowDown" && gameStatus?.bonusBoxActive) {
+        event.preventDefault();
+        controllerRef.current?.openBonusBox();
+      } else if (event.key === "ArrowDown" && gameStatus?.trashCollectorActive) {
         event.preventDefault();
         controllerRef.current?.sort("center");
       }
@@ -109,7 +115,7 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [gameStatus?.trashCollectorActive, screen]);
+  }, [gameStatus?.bonusBoxActive, gameStatus?.goldenWatermelonActive, gameStatus?.trashCollectorActive, screen]);
 
   function startGame() {
     homeThemeRef.current?.pause();
@@ -225,7 +231,17 @@ function App() {
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
-        {screen === "playing" && <GameControls copy={copy} onSort={sort} showTrashControl={gameStatus?.trashCollectorActive ?? false} />}
+        {screen === "playing" && (
+          <GameControls
+            copy={copy}
+            onSort={sort}
+            onOpenBonusBox={() => controllerRef.current?.openBonusBox()}
+            onTapGolden={() => controllerRef.current?.tapGolden()}
+            showBonusControl={gameStatus?.bonusBoxActive ?? false}
+            showGoldenControl={gameStatus?.goldenWatermelonActive ?? false}
+            showTrashControl={gameStatus?.trashCollectorActive ?? false}
+          />
+        )}
         {gameStatus && (screen === "playing" || screen === "perk" || screen === "stage-transition") && (
           <div className="stage-hud" aria-live="polite">
             <span>STAGE {gameStatus.stageIndex + 1}</span>

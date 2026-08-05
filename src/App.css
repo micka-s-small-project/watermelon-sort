@@ -59,6 +59,14 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .sort-control-button span { font-size: 40px; line-height: .8; }
 .good-button { color: #27943f; }.rotten-button { color: #a85f2d; }
 .trash-button { color: #5c6470; background: #e7ebed; }
+.golden-button { color: #8e612d; background: #ffe48a; }
+.golden-button span { font-size: 20px; }
+.bonus-button { color: #9a5c2f; background: #f6d9aa; }
+.action-button { gap: 4px; background: #e6e2fa; }
+.action-button span { font-size: 16px; }
+.action-button small { font-size: 10px; line-height: 1; }
+.action-button-idle { color: #6d668c; cursor: default; opacity: .78; }
+.action-button:disabled { box-shadow: inset 4px 4px 0 #fff, inset -4px -4px 0 #b8b4ca, 0 6px 0 #26343d; }
 .market-result { position: relative; width: min(100%, 440px); aspect-ratio: 2 / 3; overflow: hidden; background-color: #dff3ff; background-position: center; background-size: cover; background-repeat: no-repeat; }
 .market-result-title { position: absolute; z-index: 2; top: 7%; right: 4%; left: 4%; margin: 0; color: #27943f; font-size: clamp(52px, 14vw, 66px); line-height: 1; letter-spacing: 2px; text-align: center; text-shadow: -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 3px 3px 0 #fff, 0 5px 0 #fff; white-space: pre; }
 .market-result-title-character { position: relative; display: inline-block; animation: market-title-wave 1.3s ease-in-out infinite; }

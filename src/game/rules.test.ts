@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { expectedDirection, pointsForCorrectSort, randomWatermelonType } from "./rules";
+import { expectedDirection, pointsForCorrectSort, pointsForGoldenTap, randomWatermelonType } from "./rules";
 
 describe("watermelon game rules", () => {
   it("routes good watermelons left and rotten ones right", () => {
     expect(expectedDirection("good")).toBe("left");
     expect(expectedDirection("rotten")).toBe("right");
     expect(expectedDirection("trash")).toBe("center");
+    expect(expectedDirection("golden")).toBe("center");
   });
 
   it("spawns only fresh or rotten watermelons with an even split", () => {
@@ -38,6 +39,12 @@ describe("watermelon game rules", () => {
     expect(pointsForCorrectSort(0, "trash", false, true)).toBe(4);
     expect(pointsForCorrectSort(100, "trash", false, true)).toBe(8);
     expect(pointsForCorrectSort(0, "rotten", false, true)).toBe(0);
+  });
+
+  it("rewards each golden watermelon tap with five times the base score", () => {
+    expect(pointsForGoldenTap(0)).toBe(5);
+    expect(pointsForGoldenTap(100)).toBe(10);
+    expect(pointsForGoldenTap(200)).toBe(15);
   });
 
 });

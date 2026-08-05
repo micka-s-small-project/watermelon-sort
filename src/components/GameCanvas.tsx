@@ -7,6 +7,8 @@ export type GameController = {
   preview: () => void;
   start: () => void;
   sort: (direction: Direction) => void;
+  tapGolden: () => void;
+  openBonusBox: () => void;
   choosePerk: (perk: string) => void;
   continueToNextStage: () => void;
   setMusicMuted: (muted: boolean) => void;
@@ -42,6 +44,8 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
       if (!sceneRef.current?.begin()) pendingStartRef.current = true;
     },
     sort: (direction) => sceneRef.current?.sort(direction),
+    tapGolden: () => sceneRef.current?.tapGolden(),
+    openBonusBox: () => sceneRef.current?.openBonusBox(),
     choosePerk: (perk) => sceneRef.current?.choosePerk(perk),
     continueToNextStage: () => sceneRef.current?.continueToNextStage(),
     setMusicMuted: (muted) => {
