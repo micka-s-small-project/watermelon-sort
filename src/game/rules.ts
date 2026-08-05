@@ -3,7 +3,12 @@ import type { Direction, WatermelonType } from "./types";
 export function expectedDirection(type: WatermelonType): Direction {
   if (type === "good") return "left";
   if (type === "trash") return "center";
+  if (type === "golden") return "center";
   return "right";
+}
+
+export function pointsForGoldenTap(currentScore: number): number {
+  return pointsForCorrectSort(currentScore) * 5;
 }
 
 export function randomWatermelonType(random = Math.random(), goodProbability = 0.5): WatermelonType {
