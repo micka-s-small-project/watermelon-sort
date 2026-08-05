@@ -1,5 +1,5 @@
-export type Direction = "left" | "right";
-export type WatermelonType = "good" | "rotten";
+export type Direction = "left" | "center" | "right";
+export type WatermelonType = "good" | "rotten" | "trash";
 export type GameOverReason = "claims" | "complete";
 
 export type GameStatus = {
@@ -9,6 +9,7 @@ export type GameStatus = {
   score: number;
   combo: number;
   selectedPerks: string[];
+  trashCollectorActive: boolean;
 };
 
 export type PerkChoice = {

@@ -5,6 +5,7 @@ describe("watermelon game rules", () => {
   it("routes good watermelons left and rotten ones right", () => {
     expect(expectedDirection("good")).toBe("left");
     expect(expectedDirection("rotten")).toBe("right");
+    expect(expectedDirection("trash")).toBe("center");
   });
 
   it("spawns only fresh or rotten watermelons with an even split", () => {
@@ -14,12 +15,29 @@ describe("watermelon game rules", () => {
     expect(randomWatermelonType(0.999)).toBe("rotten");
   });
 
+  it("supports perk-adjusted fresh watermelon spawn chances", () => {
+    expect(randomWatermelonType(0.749, 0.75)).toBe("good");
+    expect(randomWatermelonType(0.75, 0.75)).toBe("rotten");
+  });
+
   it("increases points at the 100 and 200 score thresholds", () => {
     expect(pointsForCorrectSort(0)).toBe(1);
     expect(pointsForCorrectSort(99)).toBe(1);
     expect(pointsForCorrectSort(100)).toBe(2);
     expect(pointsForCorrectSort(199)).toBe(2);
     expect(pointsForCorrectSort(200)).toBe(3);
+  });
+
+  it("doubles fresh score and gives rotten watermelons no score for the premium contract", () => {
+    expect(pointsForCorrectSort(0, "good", true)).toBe(2);
+    expect(pointsForCorrectSort(100, "good", true)).toBe(4);
+    expect(pointsForCorrectSort(0, "rotten", true)).toBe(0);
+  });
+
+  it("gives trash a center route and bonus value for the trash collector", () => {
+    expect(pointsForCorrectSort(0, "trash", false, true)).toBe(4);
+    expect(pointsForCorrectSort(100, "trash", false, true)).toBe(8);
+    expect(pointsForCorrectSort(0, "rotten", false, true)).toBe(0);
   });
 
 });
