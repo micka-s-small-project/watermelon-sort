@@ -4,10 +4,11 @@ import { GameControls } from "./components/GameControls";
 import { saveBestScore } from "./lib/highScore";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
-import type { Direction, GameResult } from "./game/types";
+import { getStage } from "./game/stages";
+import type { Direction, GameResult, GameStatus, PerkChoice, StageClear } from "./game/types";
 import "./App.css";
 
-type Screen = "start" | "countdown" | "playing" | "result";
+type Screen = "start" | "countdown" | "playing" | "perk" | "stage-transition" | "result";
 const COUNTDOWN_SECONDS = 3;
 
 function App() {
@@ -18,6 +19,9 @@ function App() {
   const [screen, setScreen] = useState<Screen>("start");
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [result, setResult] = useState<GameResult | null>(null);
+  const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
+  const [perkChoice, setPerkChoice] = useState<PerkChoice | null>(null);
+  const [stageClear, setStageClear] = useState<StageClear | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
 
@@ -70,8 +74,8 @@ function App() {
 
     const timer = window.setTimeout(() => {
       if (countdown === 1) {
-        controllerRef.current?.start();
         setScreen("playing");
+        controllerRef.current?.start();
         return;
       }
       setCountdown((value) => value - 1);
@@ -106,6 +110,9 @@ function App() {
     homeThemeRef.current?.pause();
     if (homeThemeRef.current) homeThemeRef.current.currentTime = 0;
     setResult(null);
+    setGameStatus(null);
+    setPerkChoice(null);
+    setStageClear(null);
     setShareMessage("");
     controllerRef.current?.preview();
     setCountdown(COUNTDOWN_SECONDS);
@@ -114,12 +121,38 @@ function App() {
 
   function handleGameOver(nextResult: GameResult) {
     setResult(nextResult);
+    setStageClear(null);
     saveBestScore(nextResult.score);
     setScreen("result");
   }
 
+  function handlePerkChoice(choice: PerkChoice) {
+    setPerkChoice(choice);
+    setStageClear(null);
+    setScreen("perk");
+  }
+
+  function handleStageClear(nextStageClear: StageClear) {
+    setStageClear(nextStageClear);
+    setPerkChoice(null);
+    setScreen("stage-transition");
+  }
+
+  function continueToNextStage() {
+    controllerRef.current?.continueToNextStage();
+  }
+
+  function choosePerk(perk: string) {
+    controllerRef.current?.choosePerk(perk);
+    setPerkChoice(null);
+    setScreen("playing");
+  }
+
   function goHome() {
     setResult(null);
+    setGameStatus(null);
+    setPerkChoice(null);
+    setStageClear(null);
     setShareMessage("");
     setScreen("start");
   }
@@ -134,6 +167,8 @@ function App() {
 
   const sort = (direction: Direction) => controllerRef.current?.sort(direction);
   const toggleMusic = () => setIsMusicMuted((muted) => !muted);
+  const visibleGame = screen === "playing" || screen === "countdown" || screen === "perk" || screen === "stage-transition";
+  const displayedStageIndex = gameStatus?.stageIndex ?? stageClear?.completedStageIndex ?? 0;
 
   return (
     <main className={`app-shell app-shell-${screen} app-shell-${locale}`}>
@@ -171,17 +206,60 @@ function App() {
         </section>
       )}
 
-      <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label={copy.gameAreaLabel}>
+      <section className={`game-area game-area-stage-${displayedStageIndex} ${visibleGame ? "" : "game-area-hidden"}`} aria-label={copy.gameAreaLabel}>
         <GameCanvas
           ref={controllerRef}
           onGameOver={handleGameOver}
+          onStatusChange={setGameStatus}
+          onPerkChoice={handlePerkChoice}
+          onStageClear={handleStageClear}
         />
+        <div className="stage-tint" aria-hidden="true" />
         {screen === "countdown" && (
           <div className="game-countdown" aria-label={copy.countdownLabel}>
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
         {screen === "playing" && <GameControls copy={copy} onSort={sort} />}
+        {gameStatus && (screen === "playing" || screen === "perk" || screen === "stage-transition") && (
+          <div className="stage-hud" aria-live="polite">
+            <span>STAGE {gameStatus.stageIndex + 1}</span>
+            <strong>{getStage(gameStatus.stageIndex).title[locale]}</strong>
+            <span>{gameStatus.stageProgress} / {getStage(gameStatus.stageIndex).target}</span>
+            <span>클레임 {gameStatus.claims} / 3</span>
+          </div>
+        )}
+        {screen === "stage-transition" && stageClear && (
+          <div className="stage-clear-overlay" role="dialog" aria-modal="true" aria-labelledby="stage-clear-title">
+            <section className="stage-clear-card">
+              <p>STAGE {stageClear.completedStageIndex + 1} DELIVERY COMPLETE</p>
+              <h2 id="stage-clear-title">{getStage(stageClear.completedStageIndex).title[locale]} 완료!</h2>
+              <dl>
+                <div><dt>납품</dt><dd>{stageClear.status.stageProgress} / {getStage(stageClear.completedStageIndex).target}</dd></div>
+                <div><dt>점수</dt><dd>{stageClear.status.score}</dd></div>
+              </dl>
+              <span>다음 근무: {getStage(stageClear.completedStageIndex + 1).title[locale]}</span>
+              <button type="button" onClick={continueToNextStage}>다음 스테이지로</button>
+            </section>
+          </div>
+        )}
+        {screen === "perk" && perkChoice && (
+          <div className="perk-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="perk-choice-title">
+            <section className="perk-choice-card">
+              <p>STAGE {perkChoice.stageIndex + 1} · {getStage(perkChoice.stageIndex).title[locale]}</p>
+              <h2 id="perk-choice-title">{perkChoice.phase === "start" ? "근무 특성 선택" : "중간 배송 상자"}</h2>
+              <span>임시 특성을 선택하세요</span>
+              <div className="perk-choice-options">
+                {perkChoice.options.map((perk) => (
+                  <button type="button" key={perk} onClick={() => choosePerk(perk)}>
+                    <strong>{perk}</strong>
+                    <small>효과는 다음 단계에서 추가됩니다</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
       </section>
 
       {screen === "result" && result && (
@@ -207,7 +285,8 @@ function App() {
           </h1>
           <div className="market-result-board">
             <strong className="market-result-score">{copy.score(result.score)}</strong>
-            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : copy.wrongBeltReason}</p>
+            <p className="market-result-reason">{result.reason === "complete" ? "정산 완료!" : "해고 사유: 클레임 누적"}</p>
+            <p className="market-result-stage">도달 스테이지: {result.stageIndex + 1} · 선택 특성: {result.selectedPerks.length}개</p>
           </div>
           {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
           <div className="market-result-actions">
