@@ -1,4 +1,18 @@
 import Phaser from "phaser";
+import {
+  CLOSING_RUSH,
+  CONTINUOUS_WORK_ALLOWANCE,
+  getRandomPerks,
+  hasPerk,
+  hasPremiumDeliveryContract,
+  INSTANT_ALLOWANCE,
+  PERFECT_DELIVERY_BONUS,
+  PREMIUM_DELIVERY_CONTRACT,
+  RECOVERY_SUPPORT,
+  SAFETY_TRAINING,
+  TRASH_COLLECTOR,
+  WORK_MANUAL,
+} from "./perks";
 import { expectedDirection, pointsForCorrectSort, randomWatermelonType } from "./rules";
 import { getStage, hasNextStage, isStageComplete, isStageMidpoint } from "./stages";
 import type { Direction, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, WatermelonType } from "./types";
@@ -7,6 +21,8 @@ type GameAssets = {
   background: string;
   good: string;
   rotten: string;
+  trash: string;
+  golden: string;
   theme: string;
   sortEffect: string;
 };
@@ -28,10 +44,10 @@ type ConveyorItem = WatermelonType | "bonus";
 type ConveyorSprite = Phaser.GameObjects.Image | Phaser.GameObjects.Container;
 
 const WATERMELON_SIZE = 70;
+const TRASH_BAG_SIZE = 92;
 const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
 const MAX_CLAIMS = 3;
-const TEMPORARY_PERKS = ["특성 1", "특성 2", "특성 3"] as const;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
@@ -53,6 +69,8 @@ export class GameScene extends Phaser.Scene {
   private playing = false;
   private awaitingPerk = false;
   private awaitingStageTransition = false;
+  private claimShieldUsed = false;
+  private recoveryBonusPending = false;
   private musicMuted = false;
   private queue: ConveyorItem[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
@@ -76,6 +94,8 @@ export class GameScene extends Phaser.Scene {
     this.load.image("conveyor-background", this.assets.background);
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
+    this.load.image("trash-bag", this.assets.trash);
+    this.load.image("watermelon-golden", this.assets.golden);
     this.load.audio("watermelon-theme", this.assets.theme);
     this.load.audio("sorting-effect", this.assets.sortEffect);
   }
@@ -124,16 +144,20 @@ export class GameScene extends Phaser.Scene {
     this.claims = 0;
     this.selectedPerks = [];
     this.midpointChoiceShown = false;
+    this.claimShieldUsed = false;
+    this.recoveryBonusPending = false;
     this.scoreText?.setText("SCORE 0");
     this.comboText?.setText("COMBO x0");
-    this.queue = Array.from({ length: WATERMELON_Y.length }, () => randomWatermelonType());
+    this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomWatermelonType());
     this.createQueueSprites();
     return true;
   }
 
   choosePerk(perk: string) {
-    if (!this.awaitingPerk) return;
+    if (!this.awaitingPerk || hasPerk(this.selectedPerks, perk)) return;
     this.selectedPerks.push(perk);
+    if (perk === PREMIUM_DELIVERY_CONTRACT) this.refreshUpcomingQueue();
+    if (perk === INSTANT_ALLOWANCE) this.addScore(10);
     this.awaitingPerk = false;
     this.playing = true;
     if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
@@ -147,6 +171,8 @@ export class GameScene extends Phaser.Scene {
     this.stageIndex += 1;
     this.stageProgress = 0;
     this.midpointChoiceShown = false;
+    this.claimShieldUsed = false;
+    this.recoveryBonusPending = false;
     this.emitStatus();
     this.requestPerk("start");
   }
@@ -167,10 +193,25 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.score += pointsForCorrectSort(this.score);
+    const zeroValueRottenWatermelon = this.activeType === "rotten"
+      && (this.hasPremiumDeliveryContract() || this.hasTrashCollector());
+    let earnedScore = pointsForCorrectSort(
+      this.score,
+      this.activeType,
+      this.hasPremiumDeliveryContract(),
+      this.hasTrashCollector(),
+    );
     this.combo += 1;
+    if (!zeroValueRottenWatermelon && hasPerk(this.selectedPerks, CLOSING_RUSH)) earnedScore += 1;
+    if (!zeroValueRottenWatermelon && hasPerk(this.selectedPerks, CONTINUOUS_WORK_ALLOWANCE) && this.combo % 10 === 0) {
+      earnedScore += 5;
+    }
+    if (!zeroValueRottenWatermelon && this.recoveryBonusPending) {
+      earnedScore += 3;
+      this.recoveryBonusPending = false;
+    }
+    this.addScore(earnedScore);
     this.stageProgress += 1;
-    this.scoreText?.setText(`SCORE ${this.score}`);
     this.comboText?.setText(`COMBO x${this.combo}`);
     this.emitStatus();
 
@@ -187,8 +228,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private registerClaim() {
+    if (hasPerk(this.selectedPerks, SAFETY_TRAINING) && !this.claimShieldUsed) {
+      this.claimShieldUsed = true;
+      this.emitStatus();
+      this.advanceAndStartNextRound();
+      return;
+    }
     this.claims += 1;
     this.combo = 0;
+    this.recoveryBonusPending = hasPerk(this.selectedPerks, RECOVERY_SUPPORT);
     this.comboText?.setText("COMBO x0");
     this.emitStatus();
     if (this.claims >= MAX_CLAIMS) {
@@ -199,6 +247,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private completeStage() {
+    if (hasPerk(this.selectedPerks, PERFECT_DELIVERY_BONUS)) this.addScore(20);
+    this.emitStatus();
     if (!hasNextStage(this.stageIndex)) {
       this.finish("complete");
       return;
@@ -217,11 +267,11 @@ export class GameScene extends Phaser.Scene {
     this.onPerkChoice({
       stageIndex: this.stageIndex,
       phase,
-      options: TEMPORARY_PERKS,
+      options: getRandomPerks(this.selectedPerks),
     });
   }
 
-  private advanceAndStartNextRound(incomingItem: ConveyorItem = randomWatermelonType()) {
+  private advanceAndStartNextRound(incomingItem?: ConveyorItem) {
     this.advanceQueue(incomingItem);
     if (this.activeItem === "bonus") {
       this.time.delayedCall(500, () => {
@@ -236,7 +286,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private advanceQueue(incomingItem: ConveyorItem = randomWatermelonType()) {
+  private advanceQueue(incomingItem: ConveyorItem = this.randomWatermelonType()) {
     this.queue.pop();
     this.watermelonSprites.pop()?.destroy();
     this.queue.unshift(incomingItem);
@@ -253,6 +303,30 @@ export class GameScene extends Phaser.Scene {
     if (this.activeItem !== "bonus") this.activeType = this.activeItem;
   }
 
+  private randomWatermelonType(): WatermelonType {
+    if (this.hasTrashCollector() && Math.random() < 0.25) return "trash";
+    return randomWatermelonType(Math.random(), this.hasPremiumDeliveryContract() ? 0.75 : 0.5);
+  }
+
+  private hasPremiumDeliveryContract(): boolean {
+    return hasPremiumDeliveryContract(this.selectedPerks);
+  }
+
+  private hasTrashCollector(): boolean {
+    return hasPerk(this.selectedPerks, TRASH_COLLECTOR);
+  }
+
+  private refreshUpcomingQueue() {
+    const activeItem = this.queue[this.queue.length - 1];
+    if (!activeItem || activeItem === "bonus") return;
+    this.queue = [
+      ...Array.from({ length: WATERMELON_Y.length - 1 }, () => this.randomWatermelonType()),
+      activeItem,
+    ];
+    this.watermelonSprites.forEach((sprite) => sprite.destroy());
+    this.createQueueSprites();
+  }
+
   private createQueueSprites() {
     this.watermelonSprites = this.queue.map((item, index) =>
       this.createConveyorSprite(item, WATERMELON_Y[index]).setDepth(index + 2),
@@ -263,8 +337,10 @@ export class GameScene extends Phaser.Scene {
 
   private createConveyorSprite(item: ConveyorItem, y: number): ConveyorSprite {
     if (item !== "bonus") {
-      return this.add.image(this.scale.width / 2, y, `watermelon-${item}`)
-        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE);
+      const textureKey = item === "trash" ? "trash-bag" : `watermelon-${item}`;
+      const displaySize = item === "trash" ? TRASH_BAG_SIZE : WATERMELON_SIZE;
+      return this.add.image(this.scale.width / 2, y, textureKey)
+        .setDisplaySize(displaySize, displaySize);
     }
     const box = this.add.container(this.scale.width / 2, y);
     const boxBody = this.add.rectangle(0, 0, 78, 58, 0xfdf8e7).setStrokeStyle(3, 0x26343d);
@@ -277,7 +353,10 @@ export class GameScene extends Phaser.Scene {
 
   private startTimer() {
     this.resolved = false;
-    this.roundTimer = this.time.delayedCall(getStage(this.stageIndex).roundLimitMs, () => {
+    const timeAdjustment =
+      (hasPerk(this.selectedPerks, WORK_MANUAL) ? 150 : 0)
+      + (hasPerk(this.selectedPerks, CLOSING_RUSH) ? -150 : 0);
+    this.roundTimer = this.time.delayedCall(getStage(this.stageIndex).roundLimitMs + timeAdjustment, () => {
       if (this.resolved || !this.playing) return;
       this.resolved = true;
       this.registerClaim();
@@ -292,7 +371,13 @@ export class GameScene extends Phaser.Scene {
       score: this.score,
       combo: this.combo,
       selectedPerks: this.selectedPerks,
+      trashCollectorActive: this.hasTrashCollector(),
     };
+  }
+
+  private addScore(points: number) {
+    this.score += points;
+    this.scoreText?.setText(`SCORE ${this.score}`);
   }
 
   private emitStatus() {

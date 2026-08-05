@@ -5,6 +5,7 @@ import { saveBestScore } from "./lib/highScore";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
 import { getStage } from "./game/stages";
+import { getPerkDetails } from "./game/perks";
 import type { Direction, GameResult, GameStatus, PerkChoice, StageClear } from "./game/types";
 import "./App.css";
 
@@ -100,11 +101,15 @@ function App() {
         event.preventDefault();
         controllerRef.current?.sort("right");
       }
+      if (event.key === "ArrowDown" && gameStatus?.trashCollectorActive) {
+        event.preventDefault();
+        controllerRef.current?.sort("center");
+      }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [screen]);
+  }, [gameStatus?.trashCollectorActive, screen]);
 
   function startGame() {
     homeThemeRef.current?.pause();
@@ -220,7 +225,7 @@ function App() {
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
-        {screen === "playing" && <GameControls copy={copy} onSort={sort} />}
+        {screen === "playing" && <GameControls copy={copy} onSort={sort} showTrashControl={gameStatus?.trashCollectorActive ?? false} />}
         {gameStatus && (screen === "playing" || screen === "perk" || screen === "stage-transition") && (
           <div className="stage-hud" aria-live="polite">
             <span>STAGE {gameStatus.stageIndex + 1}</span>
@@ -253,7 +258,9 @@ function App() {
                 {perkChoice.options.map((perk) => (
                   <button type="button" key={perk} onClick={() => choosePerk(perk)}>
                     <strong>{perk}</strong>
-                    <small>효과는 다음 단계에서 추가됩니다</small>
+                    <small>
+                      {getPerkDetails(perk).map((detail) => <span key={detail}>{detail}</span>)}
+                    </small>
                   </button>
                 ))}
               </div>

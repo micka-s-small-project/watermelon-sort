@@ -69,6 +69,8 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
           background: `${baseUrl}assets/game/conveyor-truck-clean-top-v9.png`,
           good: `${baseUrl}assets/game/watermelon-good-8bit.png`,
           rotten: `${baseUrl}assets/game/watermelon-rotten-8bit.png`,
+          trash: `${baseUrl}assets/game/trash-bag-8bit.png`,
+          golden: `${baseUrl}assets/game/watermelon-golden-8bit.png`,
           theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
           sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
         },

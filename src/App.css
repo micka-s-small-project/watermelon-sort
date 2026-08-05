@@ -53,10 +53,12 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .stage-hud span:last-child { grid-column: 1 / -1; color: #a85f2d; text-align: center; }
 .controls { position: absolute; z-index: 40; right: 4%; bottom: 20%; left: 4%; display: grid; gap: 12px; align-items: end; }
 .controls-two-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.controls-three-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .control-button { display: grid; width: 100%; min-height: 68px; padding: 6px; place-items: center; border: 4px solid #26343d; border-radius: 0; color: #26343d; background: #f4f1df; box-shadow: inset 4px 4px 0 #fff, inset -4px -4px 0 #9ba3a0, 0 6px 0 #26343d; font-family: inherit; font-weight: 900; cursor: pointer; }
 .control-button:active { transform: translate(3px, 3px); box-shadow: 2px 2px 0 #1b1f25; }
 .sort-control-button span { font-size: 40px; line-height: .8; }
 .good-button { color: #27943f; }.rotten-button { color: #a85f2d; }
+.trash-button { color: #5c6470; background: #e7ebed; }
 .market-result { position: relative; width: min(100%, 440px); aspect-ratio: 2 / 3; overflow: hidden; background-color: #dff3ff; background-position: center; background-size: cover; background-repeat: no-repeat; }
 .market-result-title { position: absolute; z-index: 2; top: 7%; right: 4%; left: 4%; margin: 0; color: #27943f; font-size: clamp(52px, 14vw, 66px); line-height: 1; letter-spacing: 2px; text-align: center; text-shadow: -3px -3px 0 #fff, 3px -3px 0 #fff, -3px 3px 0 #fff, 3px 3px 0 #fff, 0 5px 0 #fff; white-space: pre; }
 .market-result-title-character { position: relative; display: inline-block; animation: market-title-wave 1.3s ease-in-out infinite; }
@@ -78,9 +80,10 @@ h1, h2, p { margin-top: 0; } h1 { margin-bottom: 0; font-size: clamp(25px, 7vw, 
 .perk-choice-card h2 { margin: 0; color: #27943f; font-size: clamp(24px, 7vw, 32px); line-height: 1; }
 .perk-choice-card > span { display: block; margin: 10px 0 16px; color: #4e5a62; font-size: 13px; }
 .perk-choice-options { display: grid; gap: 9px; }
-.perk-choice-options button { display: grid; gap: 4px; min-height: 62px; padding: 8px 12px; border: 3px solid #26343d; color: #26343d; background: #fff; box-shadow: 3px 3px 0 #26343d; cursor: pointer; }
+.perk-choice-options button { display: grid; gap: 6px; min-height: 90px; padding: 10px 12px; border: 3px solid #26343d; color: #26343d; background: #fff; box-shadow: 3px 3px 0 #26343d; cursor: pointer; }
 .perk-choice-options button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #26343d; }
-.perk-choice-options small { color: #6b7684; font-size: 11px; }
+.perk-choice-options small { display: grid; gap: 2px; color: #6b7684; font-size: 11px; line-height: 1.15; }
+.perk-choice-options small span:last-child { color: #a85f2d; }
 .stage-clear-overlay { position: absolute; z-index: 60; inset: 0; display: grid; padding: 18px; place-items: center; background: rgba(20, 33, 43, .52); }
 .stage-clear-card { width: min(100%, 360px); padding: 24px 16px 20px; border: 4px solid #26343d; background: #fdf8e7; box-shadow: 7px 7px 0 #26343d; text-align: center; animation: stage-clear-pop .32s ease-out both; }
 .stage-clear-card p { margin: 0 0 10px; color: #a85f2d; font-size: 12px; }
