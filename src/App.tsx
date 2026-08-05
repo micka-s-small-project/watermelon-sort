@@ -4,7 +4,7 @@ import { GameControls } from "./components/GameControls";
 import { saveBestScore } from "./lib/highScore";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
-import type { Direction, GameResult, WatermelonType } from "./game/types";
+import type { Direction, GameResult } from "./game/types";
 import "./App.css";
 
 type Screen = "start" | "countdown" | "playing" | "result";
@@ -20,7 +20,6 @@ function App() {
   const [result, setResult] = useState<GameResult | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
-  const [activeItem, setActiveItem] = useState<WatermelonType | null>(null);
 
   useEffect(() => {
     const audio = new Audio(`${import.meta.env.BASE_URL}assets/game/watermelon-theme.mp3`);
@@ -96,11 +95,6 @@ function App() {
       if (event.key === "ArrowRight") {
         event.preventDefault();
         controllerRef.current?.sort("right");
-      }
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        controllerRef.current?.tapGolden();
-        controllerRef.current?.discardTrash();
       }
     };
 
@@ -180,9 +174,6 @@ function App() {
       <section className={`game-area ${screen === "playing" || screen === "countdown" ? "" : "game-area-hidden"}`} aria-label={copy.gameAreaLabel}>
         <GameCanvas
           ref={controllerRef}
-          goldenEggLabel={copy.goldenEgg}
-          goldenMissLabel={copy.goldenMiss}
-          onActiveItemChange={setActiveItem}
           onGameOver={handleGameOver}
         />
         {screen === "countdown" && (
@@ -190,7 +181,7 @@ function App() {
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
           </div>
         )}
-        {screen === "playing" && <GameControls activeItem={activeItem} copy={copy} onDiscardTrash={() => controllerRef.current?.discardTrash()} onTapGolden={() => controllerRef.current?.tapGolden()} onSort={sort} />}
+        {screen === "playing" && <GameControls copy={copy} onSort={sort} />}
       </section>
 
       {screen === "result" && result && (
@@ -216,7 +207,7 @@ function App() {
           </h1>
           <div className="market-result-board">
             <strong className="market-result-score">{copy.score(result.score)}</strong>
-            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : result.reason === "goldenMiss" ? copy.goldenMissReason : copy.wrongBeltReason}</p>
+            <p className="market-result-reason">{result.reason === "timeout" ? copy.timeoutReason : copy.wrongBeltReason}</p>
           </div>
           {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
           <div className="market-result-actions">
