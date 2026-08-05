@@ -21,10 +21,6 @@ export type GameCopy = {
   sharingUnavailable: string;
   healthyWatermelonLeft: string;
   rottenWatermelonRight: string;
-  discardTrash: string;
-  swipeDown: string;
-  trashBag: string;
-  trashControlIdle: string;
   shareText: (score: number) => string;
 };
 
@@ -50,10 +46,6 @@ const COPY: Record<SupportedLocale, GameCopy> = {
     sharingUnavailable: "Sharing is unavailable on this device.",
     healthyWatermelonLeft: "Send healthy watermelon left",
     rottenWatermelonRight: "Send rotten watermelon right",
-    discardTrash: "Swipe down to discard the trash bag",
-    swipeDown: "SWIPE ↓",
-    trashBag: "TRASH",
-    trashControlIdle: "Wait for a trash bag",
     shareText: (score) => `I sorted ${score} watermelons in Watermelonlonlonmelon! Can you beat my score?`,
   },
   ko: {
@@ -77,10 +69,6 @@ const COPY: Record<SupportedLocale, GameCopy> = {
     sharingUnavailable: "이 기기에서는 공유할 수 없어요.",
     healthyWatermelonLeft: "싱싱한 수박을 왼쪽으로 보내기",
     rottenWatermelonRight: "썩은 수박을 오른쪽으로 보내기",
-    discardTrash: "아래로 밀어 쓰레기봉투 버리기",
-    swipeDown: "아래로 밀기",
-    trashBag: "쓰레기",
-    trashControlIdle: "쓰레기봉투를 기다리는 중",
     shareText: (score) => `수박수박수박박수박에서 ${score}점을 기록했어요! 내 점수를 넘을 수 있나요?`,
   },
 };

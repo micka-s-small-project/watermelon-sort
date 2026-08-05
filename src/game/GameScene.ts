@@ -6,7 +6,6 @@ type GameAssets = {
   background: string;
   good: string;
   rotten: string;
-  trash: string;
   theme: string;
   sortEffect: string;
 };
@@ -14,7 +13,6 @@ type GameAssets = {
 type SceneOptions = {
   assets: GameAssets;
   onGameOver: (result: GameResult) => void;
-  onActiveItemChange: (type: WatermelonType) => void;
   onReady: () => void;
 };
 
@@ -22,15 +20,17 @@ type VolumeAdjustableSound = Phaser.Sound.BaseSound & {
   setVolume?: (value: number) => unknown;
 };
 
-// Keep the original sprite size while ending the queue before the conveyor roller.
 const WATERMELON_SIZE = 70;
+const ITEM_DISPLAY_SIZE: Record<WatermelonType, number> = {
+  good: WATERMELON_SIZE,
+  rotten: WATERMELON_SIZE,
+};
 const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
   private readonly onGameOver: (result: GameResult) => void;
-  private readonly onActiveItemChange: (type: WatermelonType) => void;
   private readonly onReady: () => void;
   private score = 0;
   private combo = 0;
@@ -50,7 +50,6 @@ export class GameScene extends Phaser.Scene {
     super("watermelon-game");
     this.assets = options.assets;
     this.onGameOver = options.onGameOver;
-    this.onActiveItemChange = options.onActiveItemChange;
     this.onReady = options.onReady;
   }
 
@@ -58,7 +57,6 @@ export class GameScene extends Phaser.Scene {
     this.load.image("conveyor-background", this.assets.background);
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
-    this.load.image("watermelon-trash", this.assets.trash);
     this.load.audio("watermelon-theme", this.assets.theme);
     this.load.audio("sorting-effect", this.assets.sortEffect);
   }
@@ -69,28 +67,15 @@ export class GameScene extends Phaser.Scene {
     this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
 
     this.scoreText = this.add.text(76, 300, "SCORE\n0", {
-      fontFamily: '"DosStory", monospace',
-      fontSize: "18px",
-      color: "#26733a",
-      fontStyle: "bold",
-      align: "center",
-      lineSpacing: 5,
-      stroke: "#ffffff",
-      strokeThickness: 3,
+      fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#26733a", fontStyle: "bold",
+      align: "center", lineSpacing: 5, stroke: "#ffffff", strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.comboText = this.add.text(width - 76, 300, "COMBO\n×0", {
-      fontFamily: '"DosStory", monospace',
-      fontSize: "18px",
-      color: "#b55b2d",
-      fontStyle: "bold",
-      align: "center",
-      lineSpacing: 5,
-      stroke: "#ffffff",
-      strokeThickness: 3,
+      fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#b55b2d", fontStyle: "bold",
+      align: "center", lineSpacing: 5, stroke: "#ffffff", strokeThickness: 3,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.backgroundMusic = this.sound.add("watermelon-theme", {
-      loop: true,
-      volume: this.musicMuted ? 0 : 0.35,
+      loop: true, volume: this.musicMuted ? 0 : 0.35,
     }) as VolumeAdjustableSound;
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanUp, this);
@@ -100,7 +85,6 @@ export class GameScene extends Phaser.Scene {
 
   begin(): boolean {
     if (!this.ready) return false;
-
     if (this.watermelonSprites.length === 0) this.preview();
     this.playing = true;
     if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
@@ -110,7 +94,6 @@ export class GameScene extends Phaser.Scene {
 
   preview(): boolean {
     if (!this.ready) return false;
-
     this.roundTimer?.remove(false);
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
@@ -118,7 +101,7 @@ export class GameScene extends Phaser.Scene {
     this.combo = 0;
     this.scoreText?.setText("SCORE\n0");
     this.comboText?.setText("COMBO\n×0");
-    this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomType());
+    this.queue = Array.from({ length: WATERMELON_Y.length }, () => randomWatermelonType());
     this.createQueueSprites();
     return true;
   }
@@ -134,29 +117,35 @@ export class GameScene extends Phaser.Scene {
     this.roundTimer?.remove(false);
     this.sound.play("sorting-effect", { volume: 0.55 });
 
-    if (this.activeType === "trash" || direction !== expectedDirection(this.activeType)) {
+    if (direction !== expectedDirection(this.activeType)) {
       this.finish("wrong");
       return;
     }
 
-    this.resolveCorrectItem();
-  }
-
-  discardTrash() {
-    if (!this.playing || this.resolved || this.activeType !== "trash") return;
-    this.resolved = true;
-    this.roundTimer?.remove(false);
-    this.sound.play("sorting-effect", { volume: 0.55 });
-    this.resolveCorrectItem();
-  }
-
-  private resolveCorrectItem() {
     this.score += pointsForCorrectSort(this.score);
     this.combo += 1;
     this.scoreText?.setText(`SCORE\n${this.score}`);
     this.comboText?.setText(`COMBO\n×${this.combo}`);
+    this.advanceAndStartNextRound();
+  }
 
-    this.advanceQueue();
+  private advanceAndStartNextRound() {
+    this.queue.pop();
+    this.watermelonSprites.pop()?.destroy();
+
+    const nextType = randomWatermelonType();
+    this.queue.unshift(nextType);
+    const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - WATERMELON_SIZE / 2, `watermelon-${nextType}`)
+      .setDisplaySize(ITEM_DISPLAY_SIZE[nextType], ITEM_DISPLAY_SIZE[nextType])
+      .setAlpha(0.82)
+      .setDepth(2);
+    this.watermelonSprites.unshift(incoming);
+
+    this.watermelonSprites.forEach((sprite, index) => {
+      sprite.setDepth(index + 2);
+      this.tweens.add({ targets: sprite, y: WATERMELON_Y[index], alpha: 1, duration: SORT_TRANSITION_MS, ease: "Sine.easeOut" });
+    });
+    this.activeType = this.queue[this.queue.length - 1];
     this.time.delayedCall(SORT_TRANSITION_MS, () => {
       if (this.playing) this.startTimer();
     });
@@ -165,35 +154,10 @@ export class GameScene extends Phaser.Scene {
   private createQueueSprites() {
     this.watermelonSprites = this.queue.map((type, index) =>
       this.add.image(this.scale.width / 2, WATERMELON_Y[index], `watermelon-${type}`)
-        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
+        .setDisplaySize(ITEM_DISPLAY_SIZE[type], ITEM_DISPLAY_SIZE[type])
         .setDepth(index + 2),
     );
-    this.setActiveType(this.queue[this.queue.length - 1]);
-  }
-
-  private advanceQueue() {
-    this.queue.pop();
-    this.watermelonSprites.pop()?.destroy();
-
-    const nextType = this.randomType();
-    this.queue.unshift(nextType);
-    const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - WATERMELON_SIZE / 2, `watermelon-${nextType}`)
-      .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
-      .setAlpha(0.82)
-      .setDepth(2);
-    this.watermelonSprites.unshift(incoming);
-
-    this.watermelonSprites.forEach((sprite, index) => {
-      sprite.setDepth(index + 2);
-      this.tweens.add({
-        targets: sprite,
-        y: WATERMELON_Y[index],
-        alpha: 1,
-        duration: SORT_TRANSITION_MS,
-        ease: "Sine.easeOut",
-      });
-    });
-    this.setActiveType(this.queue[this.queue.length - 1]);
+    this.activeType = this.queue[this.queue.length - 1];
   }
 
   private startTimer() {
@@ -203,15 +167,6 @@ export class GameScene extends Phaser.Scene {
       this.resolved = true;
       this.finish("timeout");
     });
-  }
-
-  private randomType(): WatermelonType {
-    return randomWatermelonType(this.combo);
-  }
-
-  private setActiveType(type: WatermelonType) {
-    this.activeType = type;
-    this.onActiveItemChange(type);
   }
 
   private finish(reason: GameOverReason) {

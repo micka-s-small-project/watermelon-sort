@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS, trashSpawnChance } from "./rules";
+import { expectedDirection, pointsForCorrectSort, randomWatermelonType, ROUND_LIMIT_MS } from "./rules";
 
 describe("watermelon game rules", () => {
   it("routes good watermelons left and rotten ones right", () => {
@@ -11,14 +11,11 @@ describe("watermelon game rules", () => {
     expect(ROUND_LIMIT_MS).toBe(1_500);
   });
 
-  it("increases trash bag frequency as the combo grows", () => {
-    expect(trashSpawnChance(0)).toBe(0.03);
-    expect(trashSpawnChance(10)).toBe(0.08);
-    expect(trashSpawnChance(25)).toBe(0.15);
-    expect(randomWatermelonType(0, 0.02)).toBe("trash");
-    expect(randomWatermelonType(0, 0.1)).toBe("good");
-    expect(randomWatermelonType(25, 0.1)).toBe("trash");
-    expect(randomWatermelonType(25, 0.9)).toBe("rotten");
+  it("spawns only fresh or rotten watermelons with an even split", () => {
+    expect(randomWatermelonType(0)).toBe("good");
+    expect(randomWatermelonType(0.499)).toBe("good");
+    expect(randomWatermelonType(0.5)).toBe("rotten");
+    expect(randomWatermelonType(0.999)).toBe("rotten");
   });
 
   it("increases points at the 100 and 200 score thresholds", () => {
@@ -28,4 +25,5 @@ describe("watermelon game rules", () => {
     expect(pointsForCorrectSort(199)).toBe(2);
     expect(pointsForCorrectSort(200)).toBe(3);
   });
+
 });
