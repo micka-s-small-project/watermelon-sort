@@ -24,6 +24,9 @@ type VolumeAdjustableSound = Phaser.Sound.BaseSound & {
   setVolume?: (value: number) => unknown;
 };
 
+type ConveyorItem = WatermelonType | "bonus";
+type ConveyorSprite = Phaser.GameObjects.Image | Phaser.GameObjects.Container;
+
 const WATERMELON_SIZE = 70;
 const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
@@ -51,12 +54,13 @@ export class GameScene extends Phaser.Scene {
   private awaitingPerk = false;
   private awaitingStageTransition = false;
   private musicMuted = false;
-  private queue: WatermelonType[] = [];
+  private queue: ConveyorItem[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
-  private watermelonSprites: Phaser.GameObjects.Image[] = [];
+  private watermelonSprites: ConveyorSprite[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
   private backgroundMusic?: VolumeAdjustableSound;
+  private activeItem: ConveyorItem = "good";
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -176,8 +180,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (!this.midpointChoiceShown && isStageMidpoint(this.stageIndex, this.stageProgress)) {
       this.midpointChoiceShown = true;
-      this.advanceQueue();
-      this.requestPerk("midpoint");
+      this.advanceAndStartNextRound("bonus");
       return;
     }
     this.advanceAndStartNextRound();
@@ -218,20 +221,26 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private advanceAndStartNextRound() {
-    this.advanceQueue();
+  private advanceAndStartNextRound(incomingItem: ConveyorItem = randomWatermelonType()) {
+    this.advanceQueue(incomingItem);
+    if (this.activeItem === "bonus") {
+      this.time.delayedCall(500, () => {
+        if (!this.playing || this.activeItem !== "bonus") return;
+        this.advanceQueue();
+        this.requestPerk("midpoint");
+      });
+      return;
+    }
     this.time.delayedCall(SORT_TRANSITION_MS, () => {
       if (this.playing) this.startTimer();
     });
   }
 
-  private advanceQueue() {
+  private advanceQueue(incomingItem: ConveyorItem = randomWatermelonType()) {
     this.queue.pop();
     this.watermelonSprites.pop()?.destroy();
-    const nextType = randomWatermelonType();
-    this.queue.unshift(nextType);
-    const incoming = this.add.image(this.scale.width / 2, WATERMELON_Y[0] - WATERMELON_SIZE / 2, `watermelon-${nextType}`)
-      .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
+    this.queue.unshift(incomingItem);
+    const incoming = this.createConveyorSprite(incomingItem, WATERMELON_Y[0] - WATERMELON_SIZE / 2)
       .setAlpha(0.82)
       .setDepth(2);
     this.watermelonSprites.unshift(incoming);
@@ -240,16 +249,30 @@ export class GameScene extends Phaser.Scene {
       sprite.setDepth(index + 2);
       this.tweens.add({ targets: sprite, y: WATERMELON_Y[index], alpha: 1, duration: SORT_TRANSITION_MS, ease: "Sine.easeOut" });
     });
-    this.activeType = this.queue[this.queue.length - 1];
+    this.activeItem = this.queue[this.queue.length - 1];
+    if (this.activeItem !== "bonus") this.activeType = this.activeItem;
   }
 
   private createQueueSprites() {
-    this.watermelonSprites = this.queue.map((type, index) =>
-      this.add.image(this.scale.width / 2, WATERMELON_Y[index], `watermelon-${type}`)
-        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE)
-        .setDepth(index + 2),
+    this.watermelonSprites = this.queue.map((item, index) =>
+      this.createConveyorSprite(item, WATERMELON_Y[index]).setDepth(index + 2),
     );
-    this.activeType = this.queue[this.queue.length - 1];
+    this.activeItem = this.queue[this.queue.length - 1];
+    if (this.activeItem !== "bonus") this.activeType = this.activeItem;
+  }
+
+  private createConveyorSprite(item: ConveyorItem, y: number): ConveyorSprite {
+    if (item !== "bonus") {
+      return this.add.image(this.scale.width / 2, y, `watermelon-${item}`)
+        .setDisplaySize(WATERMELON_SIZE, WATERMELON_SIZE);
+    }
+    const box = this.add.container(this.scale.width / 2, y);
+    const boxBody = this.add.rectangle(0, 0, 78, 58, 0xfdf8e7).setStrokeStyle(3, 0x26343d);
+    const boxLabel = this.add.text(0, 0, "보너스\n성과급", {
+      fontFamily: '"DosStory", monospace', fontSize: "12px", color: "#a85f2d", fontStyle: "bold", align: "center",
+    }).setOrigin(0.5);
+    box.add([boxBody, boxLabel]);
+    return box;
   }
 
   private startTimer() {

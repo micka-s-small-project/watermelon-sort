@@ -247,8 +247,8 @@ function App() {
           <div className="perk-choice-overlay" role="dialog" aria-modal="true" aria-labelledby="perk-choice-title">
             <section className="perk-choice-card">
               <p>STAGE {perkChoice.stageIndex + 1} · {getStage(perkChoice.stageIndex).title[locale]}</p>
-              <h2 id="perk-choice-title">{perkChoice.phase === "start" ? "근무 특성 선택" : "중간 배송 상자"}</h2>
-              <span>임시 특성을 선택하세요</span>
+              <h2 id="perk-choice-title">보너스 성과급 선택</h2>
+              <span>{perkChoice.phase === "start" ? "성과급 상자가 도착했습니다" : "중간 성과급 상자가 도착했습니다"}</span>
               <div className="perk-choice-options">
                 {perkChoice.options.map((perk) => (
                   <button type="button" key={perk} onClick={() => choosePerk(perk)}>
