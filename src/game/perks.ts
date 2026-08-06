@@ -8,6 +8,7 @@ export const PERFECT_DELIVERY_BONUS = "완벽 납품 보너스";
 export const RECOVERY_SUPPORT = "재정비 지원금";
 export const TRASH_COLLECTOR = "쓰레기 수집가";
 export const GOLDEN_WATERMELON_CONTRACT = "황금 수박 계약";
+export const GODS_HAND = "신의 손";
 
 type PerkDefinition = {
   name: string;
@@ -25,6 +26,7 @@ const PERKS: readonly PerkDefinition[] = [
   { name: RECOVERY_SUPPORT, details: ["회복: 클레임 다음 점수 획득 분류 +3점", "실수 뒤의 회복 기회", "다음 보상에서만 적용됩니다"] },
   { name: TRASH_COLLECTOR, details: ["출현: 쓰레기 봉투가 레일에 등장", "보상: 가운데 분류 시 기본 점수 4배", "주의: 썩은 수박은 0점이 됩니다"] },
   { name: GOLDEN_WATERMELON_CONTRACT, details: ["출현: 황금 수박이 매우 낮은 확률로 등장", "보상: 제한 시간 동안 탭 1회당 기본 점수 5배", "주의: 한 번도 누르지 못하면 클레임이 발생합니다"] },
+  { name: GODS_HAND, details: ["보상: 모든 수박 점수가 3점으로 고정", "위험: 남은 클레임 기회가 단 1회", "주의: 한 번의 실수 또는 시간 초과 시 즉시 해고"] },
 ];
 
 export function hasPerk(selectedPerks: readonly string[], perk: string): boolean {

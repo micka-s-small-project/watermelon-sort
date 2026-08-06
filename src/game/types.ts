@@ -6,6 +6,7 @@ export type GameStatus = {
   stageIndex: number;
   stageProgress: number;
   claims: number;
+  claimLimit: number;
   score: number;
   combo: number;
   selectedPerks: string[];

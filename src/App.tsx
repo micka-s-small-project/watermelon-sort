@@ -22,6 +22,7 @@ function App() {
   const [result, setResult] = useState<GameResult | null>(null);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
   const [perkChoice, setPerkChoice] = useState<PerkChoice | null>(null);
+  const [perkCursor, setPerkCursor] = useState(0);
   const [stageClear, setStageClear] = useState<StageClear | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
@@ -92,6 +93,25 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (screen === "perk" && perkChoice) {
+        const optionCount = perkChoice.options.length;
+        if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+          event.preventDefault();
+          setPerkCursor((cursor) => (cursor - 1 + optionCount) % optionCount);
+          return;
+        }
+        if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+          event.preventDefault();
+          setPerkCursor((cursor) => (cursor + 1) % optionCount);
+          return;
+        }
+        if (event.code === "Space") {
+          event.preventDefault();
+          const perk = perkChoice.options[perkCursor];
+          if (perk) choosePerk(perk);
+        }
+        return;
+      }
       if (screen !== "playing") return;
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -115,7 +135,7 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [gameStatus?.bonusBoxActive, gameStatus?.goldenWatermelonActive, gameStatus?.trashCollectorActive, screen]);
+  }, [gameStatus?.bonusBoxActive, gameStatus?.goldenWatermelonActive, gameStatus?.trashCollectorActive, perkChoice, perkCursor, screen]);
 
   function startGame() {
     homeThemeRef.current?.pause();
@@ -123,6 +143,7 @@ function App() {
     setResult(null);
     setGameStatus(null);
     setPerkChoice(null);
+    setPerkCursor(0);
     setStageClear(null);
     setShareMessage("");
     controllerRef.current?.preview();
@@ -139,6 +160,7 @@ function App() {
 
   function handlePerkChoice(choice: PerkChoice) {
     setPerkChoice(choice);
+    setPerkCursor(0);
     setStageClear(null);
     setScreen("perk");
   }
@@ -156,6 +178,7 @@ function App() {
   function choosePerk(perk: string) {
     controllerRef.current?.choosePerk(perk);
     setPerkChoice(null);
+    setPerkCursor(0);
     setScreen("playing");
   }
 
@@ -163,6 +186,7 @@ function App() {
     setResult(null);
     setGameStatus(null);
     setPerkChoice(null);
+    setPerkCursor(0);
     setStageClear(null);
     setShareMessage("");
     setScreen("start");
@@ -247,7 +271,7 @@ function App() {
             <span>STAGE {gameStatus.stageIndex + 1}</span>
             <strong>{getStage(gameStatus.stageIndex).title[locale]}</strong>
             <span>{gameStatus.stageProgress} / {getStage(gameStatus.stageIndex).target}</span>
-            <span>클레임 {gameStatus.claims} / 3</span>
+            <span>클레임 {gameStatus.claims} / {gameStatus.claimLimit}</span>
           </div>
         )}
         {screen === "stage-transition" && stageClear && (
@@ -270,9 +294,17 @@ function App() {
               <p>STAGE {perkChoice.stageIndex + 1} · {getStage(perkChoice.stageIndex).title[locale]}</p>
               <h2 id="perk-choice-title">보너스 성과급 선택</h2>
               <span>{perkChoice.phase === "start" ? "성과급 상자가 도착했습니다" : "중간 성과급 상자가 도착했습니다"}</span>
+              <em className="perk-choice-keyboard-hint">첫 분류 시간 제한 없음 · ↑↓ 이동 · Space 선택</em>
               <div className="perk-choice-options">
-                {perkChoice.options.map((perk) => (
-                  <button type="button" key={perk} onClick={() => choosePerk(perk)}>
+                {perkChoice.options.map((perk, index) => (
+                  <button
+                    type="button"
+                    key={perk}
+                    aria-pressed={perkCursor === index}
+                    className={perkCursor === index ? "perk-choice-selected" : ""}
+                    onClick={() => choosePerk(perk)}
+                  >
+                    {perkCursor === index && <b className="perk-choice-pointer" aria-hidden="true">▶</b>}
                     <strong>{perk}</strong>
                     <small>
                       {getPerkDetails(perk).map((detail) => <span key={detail}>{detail}</span>)}

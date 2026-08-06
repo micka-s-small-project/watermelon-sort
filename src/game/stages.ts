@@ -6,9 +6,9 @@ export type Stage = {
 };
 
 export const STAGES: readonly Stage[] = [
-  { id: 1, title: { ko: "입고 검수", en: "Receiving Check" }, target: 60, roundLimitMs: 1_500 },
-  { id: 2, title: { ko: "폐점 세일", en: "Closing Sale" }, target: 80, roundLimitMs: 1_250 },
-  { id: 3, title: { ko: "월말 정산 전야", en: "Month-End Rush" }, target: 100, roundLimitMs: 1_000 },
+  { id: 1, title: { ko: "입고 검수", en: "Receiving Check" }, target: 100, roundLimitMs: 1_500 },
+  { id: 2, title: { ko: "폐점 세일", en: "Closing Sale" }, target: 150, roundLimitMs: 1_250 },
+  { id: 3, title: { ko: "월말 정산 전야", en: "Month-End Rush" }, target: 200, roundLimitMs: 1_000 },
 ];
 
 export function getStage(stageIndex: number): Stage {
