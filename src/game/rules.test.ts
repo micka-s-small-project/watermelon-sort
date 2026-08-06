@@ -47,4 +47,11 @@ describe("watermelon game rules", () => {
     expect(pointsForGoldenTap(200)).toBe(15);
   });
 
+  it("freezes watermelon values at three points for God's Hand", () => {
+    expect(pointsForCorrectSort(0, "good", false, false, true)).toBe(3);
+    expect(pointsForCorrectSort(200, "rotten", true, false, true)).toBe(3);
+    expect(pointsForGoldenTap(0, true)).toBe(3);
+    expect(pointsForCorrectSort(0, "trash", false, true, true)).toBe(4);
+  });
+
 });

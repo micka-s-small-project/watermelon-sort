@@ -7,7 +7,8 @@ export function expectedDirection(type: WatermelonType): Direction {
   return "right";
 }
 
-export function pointsForGoldenTap(currentScore: number): number {
+export function pointsForGoldenTap(currentScore: number, godsHand = false): number {
+  if (godsHand) return 3;
   return pointsForCorrectSort(currentScore) * 5;
 }
 
@@ -20,7 +21,9 @@ export function pointsForCorrectSort(
   type: WatermelonType = "good",
   premiumDeliveryContract = false,
   trashCollector = false,
+  godsHand = false,
 ): number {
+  if (godsHand && type !== "trash") return 3;
   const basePoints = currentScore >= 200 ? 3 : currentScore >= 100 ? 2 : 1;
   if (type === "rotten" && (premiumDeliveryContract || trashCollector)) return 0;
   if (type === "trash") return basePoints * 4;

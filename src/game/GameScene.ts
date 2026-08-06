@@ -3,6 +3,7 @@ import {
   CLOSING_RUSH,
   CONTINUOUS_WORK_ALLOWANCE,
   GOLDEN_WATERMELON_CONTRACT,
+  GODS_HAND,
   getRandomPerks,
   hasPerk,
   hasPremiumDeliveryContract,
@@ -73,6 +74,7 @@ export class GameScene extends Phaser.Scene {
   private awaitingPerk = false;
   private awaitingStageTransition = false;
   private claimShieldUsed = false;
+  private godsHandClaimUsed = false;
   private recoveryBonusPending = false;
   private goldenTapCount = 0;
   private musicMuted = false;
@@ -153,6 +155,7 @@ export class GameScene extends Phaser.Scene {
     this.selectedPerks = [];
     this.midpointChoiceShown = false;
     this.claimShieldUsed = false;
+    this.godsHandClaimUsed = false;
     this.recoveryBonusPending = false;
     this.goldenTapCount = 0;
     this.scoreText?.setText("SCORE 0");
@@ -165,13 +168,14 @@ export class GameScene extends Phaser.Scene {
   choosePerk(perk: string) {
     if (!this.awaitingPerk || hasPerk(this.selectedPerks, perk)) return;
     this.selectedPerks.push(perk);
+    if (perk === GODS_HAND) this.godsHandClaimUsed = false;
     if (perk === PREMIUM_DELIVERY_CONTRACT) this.refreshUpcomingQueue();
     if (perk === INSTANT_ALLOWANCE) this.addScore(10);
     this.awaitingPerk = false;
     this.playing = true;
     if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
     this.emitStatus();
-    this.startTimer();
+    this.startTimer(true);
   }
 
   continueToNextStage() {
@@ -193,7 +197,7 @@ export class GameScene extends Phaser.Scene {
 
   tapGolden() {
     if (!this.playing || this.resolved || this.activeType !== "golden") return;
-    const points = pointsForGoldenTap(this.score);
+    const points = pointsForGoldenTap(this.score, this.hasGodsHand());
     this.goldenTapCount += 1;
     this.combo += 1;
     this.addScore(points);
@@ -233,13 +237,14 @@ export class GameScene extends Phaser.Scene {
       this.activeType,
       this.hasPremiumDeliveryContract(),
       this.hasTrashCollector(),
+      this.hasGodsHand(),
     );
     this.combo += 1;
-    if (!zeroValueRottenWatermelon && hasPerk(this.selectedPerks, CLOSING_RUSH)) earnedScore += 1;
-    if (!zeroValueRottenWatermelon && hasPerk(this.selectedPerks, CONTINUOUS_WORK_ALLOWANCE) && this.combo % 10 === 0) {
+    if (!zeroValueRottenWatermelon && !this.hasGodsHand() && hasPerk(this.selectedPerks, CLOSING_RUSH)) earnedScore += 1;
+    if (!zeroValueRottenWatermelon && !this.hasGodsHand() && hasPerk(this.selectedPerks, CONTINUOUS_WORK_ALLOWANCE) && this.combo % 10 === 0) {
       earnedScore += 5;
     }
-    if (!zeroValueRottenWatermelon && this.recoveryBonusPending) {
+    if (!zeroValueRottenWatermelon && !this.hasGodsHand() && this.recoveryBonusPending) {
       earnedScore += 3;
       this.recoveryBonusPending = false;
     }
@@ -261,7 +266,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private registerClaim() {
-    if (hasPerk(this.selectedPerks, SAFETY_TRAINING) && !this.claimShieldUsed) {
+    if (this.hasGodsHand()) {
+      this.godsHandClaimUsed = true;
+      this.combo = 0;
+      this.comboText?.setText("COMBO x0");
+      this.emitStatus();
+      this.finish("claims");
+      return;
+    }
+    if (!this.hasGodsHand() && hasPerk(this.selectedPerks, SAFETY_TRAINING) && !this.claimShieldUsed) {
       this.claimShieldUsed = true;
       this.emitStatus();
       this.advanceAndStartNextRound();
@@ -272,7 +285,7 @@ export class GameScene extends Phaser.Scene {
     this.recoveryBonusPending = hasPerk(this.selectedPerks, RECOVERY_SUPPORT);
     this.comboText?.setText("COMBO x0");
     this.emitStatus();
-    if (this.claims >= MAX_CLAIMS) {
+    if (this.claims >= this.claimLimit()) {
       this.finish("claims");
       return;
     }
@@ -354,6 +367,18 @@ export class GameScene extends Phaser.Scene {
     return hasPerk(this.selectedPerks, GOLDEN_WATERMELON_CONTRACT);
   }
 
+  private hasGodsHand(): boolean {
+    return hasPerk(this.selectedPerks, GODS_HAND);
+  }
+
+  private claimLimit(): number {
+    return this.hasGodsHand() ? 1 : MAX_CLAIMS;
+  }
+
+  private displayedClaims(): number {
+    return this.hasGodsHand() ? Number(this.godsHandClaimUsed) : this.claims;
+  }
+
   private refreshUpcomingQueue() {
     const activeItem = this.queue[this.queue.length - 1];
     if (!activeItem || activeItem === "bonus") return;
@@ -389,12 +414,13 @@ export class GameScene extends Phaser.Scene {
     return box;
   }
 
-  private startTimer() {
+  private startTimer(withoutTimeLimit = false) {
     this.resolved = false;
     this.goldenTapCount = 0;
     if (this.activeType === "golden") this.showGoldenFeedback();
     else this.clearGoldenFeedback();
     this.emitStatus();
+    if (withoutTimeLimit && this.activeType !== "golden") return;
     const timeAdjustment =
       (hasPerk(this.selectedPerks, WORK_MANUAL) ? 150 : 0)
       + (hasPerk(this.selectedPerks, CLOSING_RUSH) ? -150 : 0);
@@ -470,7 +496,8 @@ export class GameScene extends Phaser.Scene {
     return {
       stageIndex: this.stageIndex,
       stageProgress: this.stageProgress,
-      claims: this.claims,
+      claims: this.displayedClaims(),
+      claimLimit: this.claimLimit(),
       score: this.score,
       combo: this.combo,
       selectedPerks: this.selectedPerks,
