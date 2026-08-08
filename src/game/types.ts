@@ -26,4 +26,12 @@ export type StageClear = {
   status: GameStatus;
 };
 
+export type GameClaim = {
+  stageIndex: number;
+  reason: "wrong_direction" | "timeout";
+  itemType: WatermelonType;
+  combo: number;
+  claimConsumed: boolean;
+};
+
 export type GameResult = GameStatus & { reason: GameOverReason };
