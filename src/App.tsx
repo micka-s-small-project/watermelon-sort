@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GameCanvas, type GameController } from "./components/GameCanvas";
 import { GameControls } from "./components/GameControls";
 import { saveBestScore } from "./lib/highScore";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
+import { trackEvent } from "./lib/analytics";
 import { getStage } from "./game/stages";
 import { getPerkDetails } from "./game/perks";
-import type { Direction, GameResult, GameStatus, PerkChoice, StageClear } from "./game/types";
+import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear } from "./game/types";
 import "./App.css";
 
 type Screen = "start" | "countdown" | "playing" | "perk" | "stage-transition" | "result";
@@ -17,6 +18,7 @@ function App() {
   const copy = getCopy(locale);
   const controllerRef = useRef<GameController>(null);
   const homeThemeRef = useRef<HTMLAudioElement | null>(null);
+  const runStartedAtRef = useRef<number | null>(null);
   const [screen, setScreen] = useState<Screen>("start");
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [result, setResult] = useState<GameResult | null>(null);
@@ -26,6 +28,22 @@ function App() {
   const [stageClear, setStageClear] = useState<StageClear | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
+
+  const choosePerk = useCallback((perk: string) => {
+    if (perkChoice) {
+      trackEvent("perk_selected", {
+        stage: perkChoice.stageIndex + 1,
+        phase: perkChoice.phase,
+        perk,
+        score: gameStatus?.score ?? 0,
+        combo: gameStatus?.combo ?? 0,
+      });
+    }
+    controllerRef.current?.choosePerk(perk);
+    setPerkChoice(null);
+    setPerkCursor(0);
+    setScreen("playing");
+  }, [gameStatus?.combo, gameStatus?.score, perkChoice]);
 
   useEffect(() => {
     const audio = new Audio(`${import.meta.env.BASE_URL}assets/game/watermelon-theme.mp3`);
@@ -77,6 +95,11 @@ function App() {
     const timer = window.setTimeout(() => {
       if (countdown === 1) {
         setScreen("playing");
+        runStartedAtRef.current = Date.now();
+        trackEvent("game_started", {
+          game_version: import.meta.env.VITE_GAME_VERSION || "local",
+          touch_capable: navigator.maxTouchPoints > 0,
+        });
         controllerRef.current?.start();
         return;
       }
@@ -135,9 +158,16 @@ function App() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [gameStatus?.bonusBoxActive, gameStatus?.goldenWatermelonActive, gameStatus?.trashCollectorActive, perkChoice, perkCursor, screen]);
+  }, [choosePerk, gameStatus?.bonusBoxActive, gameStatus?.goldenWatermelonActive, gameStatus?.trashCollectorActive, perkChoice, perkCursor, screen]);
 
   function startGame() {
+    if (result) {
+      trackEvent("game_retried", {
+        previous_reason: result.reason,
+        previous_stage: result.stageIndex + 1,
+        previous_score: result.score,
+      });
+    }
     homeThemeRef.current?.pause();
     if (homeThemeRef.current) homeThemeRef.current.currentTime = 0;
     setResult(null);
@@ -152,6 +182,16 @@ function App() {
   }
 
   function handleGameOver(nextResult: GameResult) {
+    const durationSeconds = runStartedAtRef.current
+      ? Math.max(0, Math.round((Date.now() - runStartedAtRef.current) / 1_000))
+      : 0;
+    trackEvent("game_finished", {
+      reason: nextResult.reason,
+      reached_stage: nextResult.stageIndex + 1,
+      score: nextResult.score,
+      duration_seconds: durationSeconds,
+      perks: nextResult.selectedPerks,
+    });
     setResult(nextResult);
     setStageClear(null);
     saveBestScore(nextResult.score);
@@ -159,6 +199,11 @@ function App() {
   }
 
   function handlePerkChoice(choice: PerkChoice) {
+    trackEvent("perk_offered", {
+      stage: choice.stageIndex + 1,
+      phase: choice.phase,
+      options: choice.options,
+    });
     setPerkChoice(choice);
     setPerkCursor(0);
     setStageClear(null);
@@ -171,15 +216,27 @@ function App() {
     setScreen("stage-transition");
   }
 
-  function continueToNextStage() {
-    controllerRef.current?.continueToNextStage();
+  function handleClaim(claim: GameClaim) {
+    trackEvent("claim_received", {
+      stage: claim.stageIndex + 1,
+      reason: claim.reason,
+      item_type: claim.itemType,
+      combo: claim.combo,
+      claim_consumed: claim.claimConsumed,
+    });
   }
 
-  function choosePerk(perk: string) {
-    controllerRef.current?.choosePerk(perk);
-    setPerkChoice(null);
-    setPerkCursor(0);
-    setScreen("playing");
+  function handleStageCompleted(status: GameStatus) {
+    trackEvent("stage_completed", {
+      stage: status.stageIndex + 1,
+      score: status.score,
+      combo: status.combo,
+      claims: status.claims,
+    });
+  }
+
+  function continueToNextStage() {
+    controllerRef.current?.continueToNextStage();
   }
 
   function goHome() {
@@ -195,6 +252,12 @@ function App() {
   async function handleShare() {
     if (!result) return;
     const outcome = await shareScore(copy.documentTitle, copy.shareText(result.score));
+    if (outcome === "shared" || outcome === "copied") {
+      trackEvent("score_shared", {
+        score: result.score,
+        method: outcome === "shared" ? "native_share" : "clipboard",
+      });
+    }
     setShareMessage(
       outcome === "shared" ? copy.shared : outcome === "copied" ? copy.copied : copy.sharingUnavailable,
     );
@@ -248,6 +311,8 @@ function App() {
           onStatusChange={setGameStatus}
           onPerkChoice={handlePerkChoice}
           onStageClear={handleStageClear}
+          onClaim={handleClaim}
+          onStageCompleted={handleStageCompleted}
         />
         <div className="stage-tint" aria-hidden="true" />
         {screen === "countdown" && (

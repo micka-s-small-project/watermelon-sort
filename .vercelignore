@@ -1,0 +1,12 @@
+# Native Android project and build caches are not needed for the Vite web deployment.
+android/
+
+# Local dependencies, builds, and repository metadata are rebuilt or managed by Vercel.
+node_modules/
+dist/
+.git/
+
+# Local-only development artifacts.
+.agents/
+coverage/
+*.tsbuildinfo

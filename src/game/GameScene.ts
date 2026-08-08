@@ -17,7 +17,7 @@ import {
 } from "./perks";
 import { expectedDirection, pointsForCorrectSort, pointsForGoldenTap, randomWatermelonType } from "./rules";
 import { getStage, hasNextStage, isStageComplete, isStageMidpoint } from "./stages";
-import type { Direction, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, WatermelonType } from "./types";
+import type { Direction, GameClaim, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, WatermelonType } from "./types";
 
 type GameAssets = {
   background: string;
@@ -35,6 +35,8 @@ type SceneOptions = {
   onStatusChange: (status: GameStatus) => void;
   onPerkChoice: (choice: PerkChoice) => void;
   onStageClear: (stageClear: StageClear) => void;
+  onClaim: (claim: GameClaim) => void;
+  onStageCompleted: (status: GameStatus) => void;
   onReady: () => void;
 };
 
@@ -59,6 +61,8 @@ export class GameScene extends Phaser.Scene {
   private readonly onStatusChange: (status: GameStatus) => void;
   private readonly onPerkChoice: (choice: PerkChoice) => void;
   private readonly onStageClear: (stageClear: StageClear) => void;
+  private readonly onClaim: (claim: GameClaim) => void;
+  private readonly onStageCompleted: (status: GameStatus) => void;
   private readonly onReady: () => void;
   private score = 0;
   private combo = 0;
@@ -95,6 +99,8 @@ export class GameScene extends Phaser.Scene {
     this.onStatusChange = options.onStatusChange;
     this.onPerkChoice = options.onPerkChoice;
     this.onStageClear = options.onStageClear;
+    this.onClaim = options.onClaim;
+    this.onStageCompleted = options.onStageCompleted;
     this.onReady = options.onReady;
   }
 
@@ -226,7 +232,7 @@ export class GameScene extends Phaser.Scene {
     this.sound.play("sorting-effect", { volume: 0.55 });
 
     if (direction !== expectedDirection(this.activeType)) {
-      this.registerClaim();
+      this.registerClaim("wrong_direction");
       return;
     }
 
@@ -265,7 +271,9 @@ export class GameScene extends Phaser.Scene {
     this.advanceAndStartNextRound();
   }
 
-  private registerClaim() {
+  private registerClaim(reason: GameClaim["reason"]) {
+    const claimConsumed = this.hasGodsHand() || !hasPerk(this.selectedPerks, SAFETY_TRAINING) || this.claimShieldUsed;
+    this.onClaim({ stageIndex: this.stageIndex, reason, itemType: this.activeType, combo: this.combo, claimConsumed });
     if (this.hasGodsHand()) {
       this.godsHandClaimUsed = true;
       this.combo = 0;
@@ -295,6 +303,7 @@ export class GameScene extends Phaser.Scene {
   private completeStage() {
     if (hasPerk(this.selectedPerks, PERFECT_DELIVERY_BONUS)) this.addScore(20);
     this.emitStatus();
+    this.onStageCompleted(this.getStatus());
     if (!hasNextStage(this.stageIndex)) {
       this.finish("complete");
       return;
@@ -431,7 +440,7 @@ export class GameScene extends Phaser.Scene {
         this.advanceAndStartNextRound();
         return;
       }
-      this.registerClaim();
+      this.registerClaim("timeout");
     });
   }
 

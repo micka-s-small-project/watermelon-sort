@@ -35,6 +35,20 @@ npm install
 npm run dev
 ```
 
+## 사용자 행동 분석
+
+게임은 PostHog로 익명 행동 이벤트를 수집할 수 있습니다. 분석 키가 없거나 로컬 개발 환경이면 외부 데이터를 보내지 않습니다.
+
+Vercel의 Production 환경 변수에 아래 값을 등록하세요.
+
+```text
+VITE_POSTHOG_KEY=<PostHog project API key>
+VITE_POSTHOG_HOST=https://us.i.posthog.com
+VITE_GAME_VERSION=2026-08-08
+```
+
+초기 대시보드에서는 `game_started → stage_completed(1) → stage_completed(2) → stage_completed(3)` 퍼널과 `game_finished → game_retried` 비율을 확인합니다. 재시작률은 Stage 1 완료율·최종 클리어율·종료 사유와 함께 해석합니다.
+
 ## Android 빌드
 
 Android SDK와 Java 21 환경에서 웹 게임을 Android 프로젝트에 반영합니다.

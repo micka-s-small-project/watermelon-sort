@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { GameScene } from "../game/GameScene";
-import type { Direction, GameResult, GameStatus, PerkChoice, StageClear } from "../game/types";
+import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear } from "../game/types";
 
 export type GameController = {
   preview: () => void;
@@ -19,15 +19,19 @@ type Props = {
   onStatusChange: (status: GameStatus) => void;
   onPerkChoice: (choice: PerkChoice) => void;
   onStageClear: (stageClear: StageClear) => void;
+  onClaim: (claim: GameClaim) => void;
+  onStageCompleted: (status: GameStatus) => void;
 };
 
-export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver, onStatusChange, onPerkChoice, onStageClear }, ref) {
+export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver, onStatusChange, onPerkChoice, onStageClear, onClaim, onStageCompleted }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GameScene>();
   const callbackRef = useRef(onGameOver);
   const statusCallbackRef = useRef(onStatusChange);
   const perkChoiceCallbackRef = useRef(onPerkChoice);
   const stageClearCallbackRef = useRef(onStageClear);
+  const claimCallbackRef = useRef(onClaim);
+  const stageCompletedCallbackRef = useRef(onStageCompleted);
   const pendingPreviewRef = useRef(false);
   const pendingStartRef = useRef(false);
   const musicMutedRef = useRef(false);
@@ -35,6 +39,8 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
   statusCallbackRef.current = onStatusChange;
   perkChoiceCallbackRef.current = onPerkChoice;
   stageClearCallbackRef.current = onStageClear;
+  claimCallbackRef.current = onClaim;
+  stageCompletedCallbackRef.current = onStageCompleted;
 
   useImperativeHandle(ref, () => ({
     preview: () => {
@@ -82,6 +88,8 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
         onStatusChange: (status) => statusCallbackRef.current(status),
         onPerkChoice: (choice) => perkChoiceCallbackRef.current(choice),
         onStageClear: (stageClear) => stageClearCallbackRef.current(stageClear),
+        onClaim: (claim) => claimCallbackRef.current(claim),
+        onStageCompleted: (status) => stageCompletedCallbackRef.current(status),
         onReady: () => {
           scene.setMusicMuted(musicMutedRef.current);
           if (pendingPreviewRef.current) {
