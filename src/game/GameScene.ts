@@ -87,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   private watermelonSprites: ConveyorSprite[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
+  private claimText?: Phaser.GameObjects.Text;
   private backgroundMusic?: VolumeAdjustableSound;
   private activeItem: ConveyorItem = "good";
   private goldenFeedbackObjects: Phaser.GameObjects.GameObject[] = [];
@@ -125,6 +126,10 @@ export class GameScene extends Phaser.Scene {
     this.comboText = this.add.text(width - 76, 300, "COMBO x0", {
       fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#b55b2d", fontStyle: "bold",
       align: "center", stroke: "#ffffff", strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
+    this.claimText = this.add.text(82, 74, "클레임 ♥ ♥ ♥", {
+      fontFamily: '"DosStory", monospace', fontSize: "16px", color: "#bd3145", fontStyle: "bold",
+      align: "center", stroke: "#ffffff", strokeThickness: 4,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.backgroundMusic = this.sound.add("watermelon-theme", {
       loop: true, volume: this.musicMuted ? 0 : 0.35,
@@ -166,6 +171,7 @@ export class GameScene extends Phaser.Scene {
     this.goldenTapCount = 0;
     this.scoreText?.setText("SCORE 0");
     this.comboText?.setText("COMBO x0");
+    this.updateClaimDisplay();
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomWatermelonType());
     this.createQueueSprites();
     return true;
@@ -273,6 +279,7 @@ export class GameScene extends Phaser.Scene {
 
   private registerClaim(reason: GameClaim["reason"]) {
     const claimConsumed = this.hasGodsHand() || !hasPerk(this.selectedPerks, SAFETY_TRAINING) || this.claimShieldUsed;
+    this.showClaimFeedback(claimConsumed);
     this.onClaim({ stageIndex: this.stageIndex, reason, itemType: this.activeType, combo: this.combo, claimConsumed });
     if (this.hasGodsHand()) {
       this.godsHandClaimUsed = true;
@@ -493,6 +500,29 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private showClaimFeedback(claimConsumed: boolean) {
+    const activeSprite = this.watermelonSprites[this.watermelonSprites.length - 1];
+    if (!activeSprite) return;
+    const feedback = this.add.text(activeSprite.x, activeSprite.y - 42, claimConsumed ? "♥ -1" : "보호막 방어!", {
+      fontFamily: '"DosStory", monospace', fontSize: claimConsumed ? "24px" : "17px",
+      color: claimConsumed ? "#d3344b" : "#287d9b", fontStyle: "bold",
+      stroke: "#ffffff", strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(42);
+    const flash = this.add.circle(activeSprite.x, activeSprite.y, 44, 0xd3344b, 0.34).setDepth(11);
+    this.tweens.add({
+      targets: [feedback, flash],
+      y: "-=26",
+      alpha: 0,
+      duration: 520,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        feedback.destroy();
+        flash.destroy();
+      },
+    });
+    this.tweens.add({ targets: activeSprite, x: activeSprite.x - 8, duration: 55, yoyo: true, repeat: 3 });
+  }
+
   private clearGoldenFeedback() {
     this.goldenFeedbackObjects.forEach((feedback) => {
       this.tweens.killTweensOf(feedback);
@@ -522,7 +552,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitStatus() {
+    this.updateClaimDisplay();
     this.onStatusChange(this.getStatus());
+  }
+
+  private updateClaimDisplay() {
+    const claimLimit = this.claimLimit();
+    const remainingClaims = Math.max(claimLimit - this.displayedClaims(), 0);
+    const hearts = Array.from({ length: claimLimit }, (_, index) => (index < remainingClaims ? "♥" : "♡")).join(" ");
+    this.claimText?.setText(`클레임 ${hearts}`);
   }
 
   private finish(reason: GameOverReason) {
