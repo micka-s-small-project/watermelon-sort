@@ -1,11 +1,11 @@
 import Phaser from "phaser";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { GameScene } from "../game/GameScene";
-import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear } from "../game/types";
+import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear, TutorialResult } from "../game/types";
 
 export type GameController = {
   preview: () => void;
-  start: () => void;
+  start: (showTutorial: boolean) => void;
   sort: (direction: Direction) => void;
   tapGolden: () => void;
   openBonusBox: () => void;
@@ -21,9 +21,11 @@ type Props = {
   onStageClear: (stageClear: StageClear) => void;
   onClaim: (claim: GameClaim) => void;
   onStageCompleted: (status: GameStatus) => void;
+  onTutorialStepCompleted: (completed: number, total: number, firstAttemptCorrect: boolean) => void;
+  onTutorialResult: (result: TutorialResult) => void;
 };
 
-export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver, onStatusChange, onPerkChoice, onStageClear, onClaim, onStageCompleted }, ref) {
+export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas({ onGameOver, onStatusChange, onPerkChoice, onStageClear, onClaim, onStageCompleted, onTutorialStepCompleted, onTutorialResult }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<GameScene>();
   const callbackRef = useRef(onGameOver);
@@ -32,8 +34,10 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
   const stageClearCallbackRef = useRef(onStageClear);
   const claimCallbackRef = useRef(onClaim);
   const stageCompletedCallbackRef = useRef(onStageCompleted);
+  const tutorialStepCompletedCallbackRef = useRef(onTutorialStepCompleted);
+  const tutorialResultCallbackRef = useRef(onTutorialResult);
   const pendingPreviewRef = useRef(false);
-  const pendingStartRef = useRef(false);
+  const pendingStartRef = useRef<boolean | null>(null);
   const musicMutedRef = useRef(false);
   callbackRef.current = onGameOver;
   statusCallbackRef.current = onStatusChange;
@@ -41,13 +45,15 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
   stageClearCallbackRef.current = onStageClear;
   claimCallbackRef.current = onClaim;
   stageCompletedCallbackRef.current = onStageCompleted;
+  tutorialStepCompletedCallbackRef.current = onTutorialStepCompleted;
+  tutorialResultCallbackRef.current = onTutorialResult;
 
   useImperativeHandle(ref, () => ({
     preview: () => {
       if (!sceneRef.current?.preview()) pendingPreviewRef.current = true;
     },
-    start: () => {
-      if (!sceneRef.current?.begin()) pendingStartRef.current = true;
+    start: (showTutorial) => {
+      if (!sceneRef.current?.begin(showTutorial)) pendingStartRef.current = showTutorial;
     },
     sort: (direction) => sceneRef.current?.sort(direction),
     tapGolden: () => sceneRef.current?.tapGolden(),
@@ -90,15 +96,18 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
         onStageClear: (stageClear) => stageClearCallbackRef.current(stageClear),
         onClaim: (claim) => claimCallbackRef.current(claim),
         onStageCompleted: (status) => stageCompletedCallbackRef.current(status),
+        onTutorialStepCompleted: (completed, total, firstAttemptCorrect) => tutorialStepCompletedCallbackRef.current(completed, total, firstAttemptCorrect),
+        onTutorialResult: (result) => tutorialResultCallbackRef.current(result),
         onReady: () => {
           scene.setMusicMuted(musicMutedRef.current);
           if (pendingPreviewRef.current) {
             pendingPreviewRef.current = false;
             scene.preview();
           }
-          if (pendingStartRef.current) {
-            pendingStartRef.current = false;
-            scene.begin();
+          if (pendingStartRef.current !== null) {
+            const showTutorial = pendingStartRef.current;
+            pendingStartRef.current = null;
+            scene.begin(showTutorial);
           }
         },
       });

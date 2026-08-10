@@ -2,16 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { GameCanvas, type GameController } from "./components/GameCanvas";
 import { GameControls } from "./components/GameControls";
 import { saveBestScore } from "./lib/highScore";
+import { completeTutorial, hasCompletedTutorial } from "./lib/tutorial";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
 import { trackEvent } from "./lib/analytics";
+import { calculateClaimDeduction, calculateSettlement, calculateTakeHomePay, formatWon, WON_PER_SCORE } from "./lib/settlement";
 import { getStage } from "./game/stages";
-import { getPerkDetails } from "./game/perks";
-import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear } from "./game/types";
+import { GOLDEN_WATERMELON_CONTRACT, getPerkDetails, TRASH_COLLECTOR } from "./game/perks";
+import { TUTORIAL_TOTAL } from "./game/tutorial";
+import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear, TutorialResult } from "./game/types";
 import "./App.css";
 
-type Screen = "start" | "countdown" | "playing" | "perk" | "stage-transition" | "result";
+type Screen = "start" | "countdown" | "tutorial-intro" | "playing" | "perk" | "stage-transition" | "tutorial-result" | "result";
 const COUNTDOWN_SECONDS = 3;
+const TUTORIAL_INTRO_MS = 1_600;
 
 function App() {
   const [locale] = useState(getBrowserLocale);
@@ -28,6 +32,7 @@ function App() {
   const [stageClear, setStageClear] = useState<StageClear | null>(null);
   const [shareMessage, setShareMessage] = useState("");
   const [isMusicMuted, setIsMusicMuted] = useState(false);
+  const [tutorialResult, setTutorialResult] = useState<TutorialResult | null>(null);
 
   const choosePerk = useCallback((perk: string) => {
     if (perkChoice) {
@@ -100,7 +105,7 @@ function App() {
           game_version: import.meta.env.VITE_GAME_VERSION || "local",
           touch_capable: navigator.maxTouchPoints > 0,
         });
-        controllerRef.current?.start();
+        controllerRef.current?.start(false);
         return;
       }
       setCountdown((value) => value - 1);
@@ -108,6 +113,23 @@ function App() {
 
     return () => window.clearTimeout(timer);
   }, [countdown, screen]);
+
+  useEffect(() => {
+    if (screen !== "tutorial-intro") return;
+
+    const timer = window.setTimeout(() => {
+      setScreen("playing");
+      runStartedAtRef.current = Date.now();
+      trackEvent("game_started", {
+        game_version: import.meta.env.VITE_GAME_VERSION || "local",
+        touch_capable: navigator.maxTouchPoints > 0,
+      });
+      trackEvent("tutorial_started", { total: TUTORIAL_TOTAL });
+      controllerRef.current?.start(true);
+    }, TUTORIAL_INTRO_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [screen]);
 
   useEffect(() => {
     if (homeThemeRef.current) homeThemeRef.current.muted = isMusicMuted;
@@ -176,9 +198,11 @@ function App() {
     setPerkCursor(0);
     setStageClear(null);
     setShareMessage("");
+    setTutorialResult(null);
+    const needsTutorial = !hasCompletedTutorial();
     controllerRef.current?.preview();
     setCountdown(COUNTDOWN_SECONDS);
-    setScreen("countdown");
+    setScreen(needsTutorial ? "tutorial-intro" : "countdown");
   }
 
   function handleGameOver(nextResult: GameResult) {
@@ -235,6 +259,30 @@ function App() {
     });
   }
 
+  function handleTutorialStepCompleted(completed: number, total: number, firstAttemptCorrect: boolean) {
+    trackEvent("tutorial_step_completed", {
+      completed,
+      total,
+      first_attempt_correct: firstAttemptCorrect,
+    });
+  }
+
+  function handleTutorialResult(nextTutorialResult: TutorialResult) {
+    setTutorialResult(nextTutorialResult);
+    setScreen("tutorial-result");
+  }
+
+  function startRegularShift() {
+    if (!tutorialResult) return;
+    completeTutorial();
+    trackEvent("tutorial_completed", {
+      total: tutorialResult.total,
+      first_attempt_correct: tutorialResult.firstAttemptCorrect,
+    });
+    setCountdown(COUNTDOWN_SECONDS);
+    setScreen("countdown");
+  }
+
   function continueToNextStage() {
     controllerRef.current?.continueToNextStage();
   }
@@ -246,6 +294,7 @@ function App() {
     setPerkCursor(0);
     setStageClear(null);
     setShareMessage("");
+    setTutorialResult(null);
     setScreen("start");
   }
 
@@ -265,7 +314,12 @@ function App() {
 
   const sort = (direction: Direction) => controllerRef.current?.sort(direction);
   const toggleMusic = () => setIsMusicMuted((muted) => !muted);
-  const visibleGame = screen === "playing" || screen === "countdown" || screen === "perk" || screen === "stage-transition";
+  const settlementAmount = result ? calculateSettlement(result.score) : 0;
+  const claimDeductionAmount = result ? calculateClaimDeduction(result.claims) : 0;
+  const takeHomePay = result ? calculateTakeHomePay(result.score, result.claims) : 0;
+  const showsGoldenWatermelon = result?.selectedPerks.includes(GOLDEN_WATERMELON_CONTRACT) ?? false;
+  const showsTrashBag = result?.selectedPerks.includes(TRASH_COLLECTOR) ?? false;
+  const visibleGame = screen === "playing" || screen === "countdown" || screen === "tutorial-intro" || screen === "perk" || screen === "stage-transition" || screen === "tutorial-result";
   const displayedStageIndex = gameStatus?.stageIndex ?? stageClear?.completedStageIndex ?? 0;
 
   return (
@@ -313,11 +367,18 @@ function App() {
           onStageClear={handleStageClear}
           onClaim={handleClaim}
           onStageCompleted={handleStageCompleted}
+          onTutorialStepCompleted={handleTutorialStepCompleted}
+          onTutorialResult={handleTutorialResult}
         />
         <div className="stage-tint" aria-hidden="true" />
         {screen === "countdown" && (
           <div className="game-countdown" aria-label={copy.countdownLabel}>
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
+          </div>
+        )}
+        {screen === "tutorial-intro" && (
+          <div className="tutorial-intro-overlay" aria-live="assertive">
+            <p className="tutorial-intro-title">{copy.tutorialIntroTitle}</p>
           </div>
         )}
         {screen === "playing" && (
@@ -330,6 +391,22 @@ function App() {
             showGoldenControl={gameStatus?.goldenWatermelonActive ?? false}
             showTrashControl={gameStatus?.trashCollectorActive ?? false}
           />
+        )}
+        {screen === "playing" && gameStatus?.tutorial && (
+          <aside className="tutorial-guide" aria-live="polite">
+            <strong>{gameStatus.tutorial.currentItem === "bonus" ? copy.tutorialBonusTitle : copy.tutorialProgress(gameStatus.tutorial.completed, gameStatus.tutorial.total)}</strong>
+            <span>
+              {gameStatus.tutorial.currentItem === "bonus"
+                ? copy.tutorialBonusGuide
+                : gameStatus.tutorial.hadWrongAttempt
+                ? copy.tutorialTryAgain
+                : gameStatus.tutorial.completed === 0
+                  ? copy.tutorialGoodGuide
+                  : gameStatus.tutorial.completed === 1
+                    ? copy.tutorialRottenGuide
+                    : copy.tutorialMixedGuide}
+            </span>
+          </aside>
         )}
         {gameStatus && (screen === "playing" || screen === "perk" || screen === "stage-transition") && (
           <div className="stage-hud" aria-live="polite">
@@ -358,8 +435,8 @@ function App() {
             <section className="perk-choice-card">
               <p>STAGE {perkChoice.stageIndex + 1} · {getStage(perkChoice.stageIndex).title[locale]}</p>
               <h2 id="perk-choice-title">보너스 성과급 선택</h2>
-              <span>{perkChoice.phase === "start" ? "성과급 상자가 도착했습니다" : "중간 성과급 상자가 도착했습니다"}</span>
-              <em className="perk-choice-keyboard-hint">첫 분류 시간 제한 없음 · ↑↓ 이동 · Space 선택</em>
+              <span>{perkChoice.phase === "tutorial" ? "성과급 보너스 상자가 도착했습니다" : perkChoice.phase === "start" ? "성과급 상자가 도착했습니다" : "중간 성과급 상자가 도착했습니다"}</span>
+              <em className="perk-choice-keyboard-hint">{perkChoice.phase === "tutorial" ? copy.tutorialPerkSelectionGuide : "첫 분류 시간 제한 없음 · ↑↓ 이동 · Space 선택"}</em>
               <div className="perk-choice-options">
                 {perkChoice.options.map((perk, index) => (
                   <button
@@ -380,34 +457,69 @@ function App() {
             </section>
           </div>
         )}
+        {screen === "tutorial-result" && tutorialResult && (
+          <div className="tutorial-result-overlay" role="dialog" aria-modal="true" aria-labelledby="tutorial-result-title">
+            <section className="tutorial-result-card">
+              <p>TRAINING COMPLETE</p>
+              <h2 id="tutorial-result-title">{copy.tutorialResultTitle}</h2>
+              <strong>{copy.tutorialResultComplete(tutorialResult.total)}</strong>
+              <span>{copy.tutorialResultAccuracy(tutorialResult.firstAttemptCorrect, tutorialResult.total)}</span>
+              <em>{copy.tutorialResultMessage}</em>
+              <small>{copy.tutorialTraitGuide}</small>
+              <button type="button" onClick={startRegularShift}>{copy.tutorialContinue}</button>
+            </section>
+          </div>
+        )}
       </section>
 
       {screen === "result" && result && (
-        <section
-          className="market-result"
-          aria-label={copy.resultLabel}
-          style={{ backgroundImage: `url(${import.meta.env.BASE_URL}assets/game/game-over-market-background-v3.png)` }}
-        >
-          <h1 className="market-result-title">
-            {copy.resultTitleLines.map((line, lineIndex) => (
-              <span className="market-result-title-line" key={line}>
-                {Array.from(line).map((character, characterIndex) => (
-                  <span
-                    className="market-result-title-character"
-                    key={`${line}-${characterIndex}`}
-                    style={{ animationDelay: `${(lineIndex * line.length + characterIndex) * 80}ms` }}
-                  >
-                    {character}
-                  </span>
+        <section className="market-result" aria-label={copy.resultLabel}>
+          <header className="settlement-header">
+            <p>수박수박수박박수박 마트</p>
+            <h1>{copy.resultLabel}</h1>
+            <span>근무 정산 영수증</span>
+          </header>
+          <section className="settlement-receipt" aria-label="급여 명세서">
+            <p className="settlement-receipt-eyebrow">WORK SETTLEMENT</p>
+            <p className="market-result-reason">{result.reason === "complete" ? "정산 완료!" : "중도 정산 · 클레임 누적"}</p>
+            <dl className="settlement-breakdown">
+              <div><dt>분류 성과</dt><dd>{copy.score(result.score)}</dd></div>
+              <div><dt>환산 단가</dt><dd>1점당 {formatWon(WON_PER_SCORE)}</dd></div>
+              <div><dt>분류 수당</dt><dd>{formatWon(settlementAmount)}</dd></div>
+              <div><dt>클레임 공제 ({result.claims}회)</dt><dd className="settlement-claim-deduction">- {formatWon(claimDeductionAmount)}</dd></div>
+              <div className="settlement-total"><dt>이번 근무 실수령</dt><dd>{formatWon(takeHomePay)}</dd></div>
+            </dl>
+            <p className="market-result-stage">도달 스테이지 {result.stageIndex + 1} · 선택 특성 {result.selectedPerks.length}개</p>
+          </section>
+
+          <section className="settlement-perks" aria-labelledby="settlement-perks-title">
+            <p>오늘의 운영 지시</p>
+            <h2 id="settlement-perks-title">선택한 특성</h2>
+            {result.selectedPerks.length > 0 ? (
+              <ul>
+                {result.selectedPerks.map((perk) => (
+                  <li key={perk}>
+                    <strong>{perk}</strong>
+                    <span>{getPerkDetails(perk)[0] ?? "이번 근무에 적용됨"}</span>
+                  </li>
                 ))}
-              </span>
-            ))}
-          </h1>
-          <div className="market-result-board">
-            <strong className="market-result-score">{copy.score(result.score)}</strong>
-            <p className="market-result-reason">{result.reason === "complete" ? "정산 완료!" : "해고 사유: 클레임 누적"}</p>
-            <p className="market-result-stage">도달 스테이지: {result.stageIndex + 1} · 선택 특성: {result.selectedPerks.length}개</p>
-          </div>
+              </ul>
+            ) : (
+              <span className="settlement-perks-empty">선택한 특성이 없습니다.</span>
+            )}
+          </section>
+
+          <section className="settlement-items" aria-labelledby="settlement-items-title">
+            <p>오늘의 분류 실적</p>
+            <h2 id="settlement-items-title">처리한 품목</h2>
+            <dl>
+              <div><dt>정상 수박</dt><dd>{result.sortedCounts.good}개</dd></div>
+              <div><dt>썩은 수박</dt><dd>{result.sortedCounts.rotten}개</dd></div>
+              {showsGoldenWatermelon && <div><dt>황금 수박</dt><dd>{result.sortedCounts.golden}개</dd></div>}
+              {showsTrashBag && <div><dt>쓰레기봉투</dt><dd>{result.sortedCounts.trash}개</dd></div>}
+            </dl>
+          </section>
+
           {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
           <div className="market-result-actions">
             <button type="button" onClick={startGame}>{copy.retry}</button>
