@@ -22,6 +22,7 @@ export type GameStatus = {
   claims: number;
   claimLimit: number;
   score: number;
+  stageScores: readonly number[];
   combo: number;
   sortedCounts: SortedCounts;
   selectedPerks: string[];

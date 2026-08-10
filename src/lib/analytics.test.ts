@@ -46,4 +46,13 @@ describe("analytics", () => {
 
     expect(capture).toHaveBeenCalledWith("tutorial_completed", { total: 10, first_attempt_correct: 8 });
   });
+
+  it("records where a player opens feedback", () => {
+    const capture = vi.fn();
+    const analytics = createAnalytics({ capture });
+
+    analytics.track("feedback_opened", { source: "result", score: 165, stage: 2 });
+
+    expect(capture).toHaveBeenCalledWith("feedback_opened", { source: "result", score: 165, stage: 2 });
+  });
 });

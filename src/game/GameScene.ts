@@ -34,6 +34,7 @@ type GameAssets = {
   golden: string;
   theme: string;
   sortEffect: string;
+  receiptPrint: string;
 };
 
 type SceneOptions = {
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
   private readonly onTutorialResult: (result: TutorialResult) => void;
   private readonly onReady: () => void;
   private score = 0;
+  private stageScores = [0, 0, 0];
   private combo = 0;
   private stageIndex = 0;
   private stageProgress = 0;
@@ -110,6 +112,7 @@ export class GameScene extends Phaser.Scene {
   private comboText?: Phaser.GameObjects.Text;
   private claimText?: Phaser.GameObjects.Text;
   private backgroundMusic?: VolumeAdjustableSound;
+  private receiptPrintSound?: Phaser.Sound.BaseSound;
   private activeItem: ConveyorItem = "good";
   private goldenFeedbackObjects: Phaser.GameObjects.GameObject[] = [];
   private bonusPrompt?: Phaser.GameObjects.Text;
@@ -145,6 +148,7 @@ export class GameScene extends Phaser.Scene {
     this.load.image("watermelon-golden", this.assets.golden);
     this.load.audio("watermelon-theme", this.assets.theme);
     this.load.audio("sorting-effect", this.assets.sortEffect);
+    this.load.audio("receipt-print", this.assets.receiptPrint);
   }
 
   create() {
@@ -170,6 +174,7 @@ export class GameScene extends Phaser.Scene {
     this.backgroundMusic = this.sound.add("watermelon-theme", {
       loop: true, volume: this.musicMuted ? 0 : 0.35,
     }) as VolumeAdjustableSound;
+    this.receiptPrintSound = this.sound.add("receipt-print", { volume: 0.7 });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.cleanUp, this);
     this.ready = true;
@@ -200,6 +205,7 @@ export class GameScene extends Phaser.Scene {
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
     this.score = 0;
+    this.stageScores = [0, 0, 0];
     this.combo = 0;
     this.stageIndex = 0;
     this.stageProgress = 0;
@@ -269,6 +275,12 @@ export class GameScene extends Phaser.Scene {
   setMusicMuted(muted: boolean) {
     this.musicMuted = muted;
     this.backgroundMusic?.setVolume?.(muted ? 0 : 0.35);
+  }
+
+  playReceiptPrintSound() {
+    if (this.musicMuted) return;
+    this.receiptPrintSound?.stop();
+    this.receiptPrintSound?.play();
   }
 
   tapGolden() {
@@ -827,6 +839,7 @@ export class GameScene extends Phaser.Scene {
       claims: this.displayedClaims(),
       claimLimit: this.claimLimit(),
       score: this.score,
+      stageScores: [...this.stageScores],
       combo: this.combo,
       sortedCounts: { ...this.sortedCounts },
       selectedPerks: this.selectedPerks,
@@ -847,6 +860,7 @@ export class GameScene extends Phaser.Scene {
 
   private addScore(points: number) {
     this.score += points;
+    this.stageScores[this.stageIndex] += points;
     this.scoreText?.setText(`SCORE ${this.score}`);
   }
 
@@ -882,5 +896,8 @@ export class GameScene extends Phaser.Scene {
     this.roundTimer?.remove(false);
     this.backgroundMusic?.destroy();
     this.backgroundMusic = undefined;
+    this.receiptPrintSound?.stop();
+    this.receiptPrintSound?.destroy();
+    this.receiptPrintSound = undefined;
   }
 }

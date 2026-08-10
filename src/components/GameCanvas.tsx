@@ -12,6 +12,7 @@ export type GameController = {
   choosePerk: (perk: string) => void;
   continueToNextStage: () => void;
   setMusicMuted: (muted: boolean) => void;
+  playReceiptPrintSound: () => void;
 };
 
 type Props = {
@@ -64,6 +65,7 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
       musicMutedRef.current = muted;
       sceneRef.current?.setMusicMuted(muted);
     },
+    playReceiptPrintSound: () => sceneRef.current?.playReceiptPrintSound(),
   }), []);
 
   useEffect(() => {
@@ -89,6 +91,7 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
           golden: `${baseUrl}assets/game/watermelon-golden-8bit.png`,
           theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
           sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
+          receiptPrint: `${baseUrl}assets/game/printer-receipt.mp3`,
         },
         onGameOver: (result) => callbackRef.current(result),
         onStatusChange: (status) => statusCallbackRef.current(status),
