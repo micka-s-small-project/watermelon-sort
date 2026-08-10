@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { recordClaimHistory } from "./claims";
 import {
   BOSS_SON,
   CLOSING_RUSH,
@@ -85,6 +86,7 @@ export class GameScene extends Phaser.Scene {
   private stageIndex = 0;
   private stageProgress = 0;
   private claims = 0;
+  private claimHistory = 0;
   private stageScoreStart = 0;
   private stageHadClaim = false;
   private closingSettlementActive = true;
@@ -210,6 +212,7 @@ export class GameScene extends Phaser.Scene {
     this.stageIndex = 0;
     this.stageProgress = 0;
     this.claims = 0;
+    this.claimHistory = 0;
     this.stageScoreStart = 0;
     this.stageHadClaim = false;
     this.closingSettlementActive = true;
@@ -491,6 +494,7 @@ export class GameScene extends Phaser.Scene {
     }
     const claimConsumed = !bossSonPardon
       && (this.hasGodsHand() || !hasPerk(this.selectedPerks, SAFETY_TRAINING) || this.claimShieldUsed);
+    this.claimHistory = recordClaimHistory(this.claimHistory, claimConsumed);
     this.showClaimFeedback(claimConsumed, bossSonPardon ? "사장님네 아들 봐줌!" : undefined);
     this.onClaim({ stageIndex: this.stageIndex, reason, itemType: this.activeType, combo: this.combo, claimConsumed });
     if (bossSonPardon) {
@@ -836,7 +840,7 @@ export class GameScene extends Phaser.Scene {
     return {
       stageIndex: this.stageIndex,
       stageProgress: this.stageProgress,
-      claims: this.displayedClaims(),
+      claims: this.claimHistory,
       claimLimit: this.claimLimit(),
       score: this.score,
       stageScores: [...this.stageScores],

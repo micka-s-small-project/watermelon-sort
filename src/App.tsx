@@ -458,7 +458,7 @@ function App() {
             <span>STAGE {gameStatus.stageIndex + 1}</span>
             <strong>{getStage(gameStatus.stageIndex).title[locale]}</strong>
             <span>{gameStatus.stageProgress} / {getStage(gameStatus.stageIndex).target}</span>
-            <span>클레임 {gameStatus.claims} / {gameStatus.claimLimit}</span>
+            <span>누적 클레임 {gameStatus.claims}회</span>
           </div>
         )}
         {screen === "stage-transition" && stageClear && (
