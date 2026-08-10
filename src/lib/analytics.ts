@@ -13,6 +13,7 @@ type AnalyticsEventProperties = {
   tutorial_started: { total: number };
   tutorial_step_completed: { completed: number; total: number; first_attempt_correct: boolean };
   tutorial_completed: { total: number; first_attempt_correct: number };
+  feedback_opened: { source: "home" | "result"; score?: number; stage?: number };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventProperties;

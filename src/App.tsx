@@ -5,17 +5,20 @@ import { saveBestScore } from "./lib/highScore";
 import { completeTutorial, hasCompletedTutorial } from "./lib/tutorial";
 import { getBrowserLocale, getCopy } from "./lib/i18n";
 import { shareScore } from "./lib/shareScore";
+import { createFeedbackMailto } from "./lib/feedback";
+import { getSettlementComment, type SettlementComment } from "./lib/settlementComment";
 import { trackEvent } from "./lib/analytics";
-import { calculateClaimDeduction, calculateSettlement, calculateTakeHomePay, formatWon, WON_PER_SCORE } from "./lib/settlement";
+import { calculateClaimDeduction, calculateSettlement, calculateStageSettlement, calculateTakeHomePay, formatWon, getWonPerScore } from "./lib/settlement";
 import { getStage } from "./game/stages";
 import { GOLDEN_WATERMELON_CONTRACT, getPerkDetails, TRASH_COLLECTOR } from "./game/perks";
 import { TUTORIAL_TOTAL } from "./game/tutorial";
 import type { Direction, GameClaim, GameResult, GameStatus, PerkChoice, StageClear, TutorialResult } from "./game/types";
 import "./App.css";
 
-type Screen = "start" | "countdown" | "tutorial-intro" | "playing" | "perk" | "stage-transition" | "tutorial-result" | "result";
+type Screen = "start" | "countdown" | "tutorial-intro" | "playing" | "perk" | "stage-transition" | "tutorial-result" | "game-over" | "result";
 const COUNTDOWN_SECONDS = 3;
 const TUTORIAL_INTRO_MS = 1_600;
+const GAME_OVER_NOTICE_MS = 1_500;
 
 function App() {
   const [locale] = useState(getBrowserLocale);
@@ -23,9 +26,12 @@ function App() {
   const controllerRef = useRef<GameController>(null);
   const homeThemeRef = useRef<HTMLAudioElement | null>(null);
   const runStartedAtRef = useRef<number | null>(null);
+  const printedResultRef = useRef<GameResult | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
   const [screen, setScreen] = useState<Screen>("start");
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [result, setResult] = useState<GameResult | null>(null);
+  const [settlementComment, setSettlementComment] = useState<SettlementComment | null>(null);
   const [gameStatus, setGameStatus] = useState<GameStatus | null>(null);
   const [perkChoice, setPerkChoice] = useState<PerkChoice | null>(null);
   const [perkCursor, setPerkCursor] = useState(0);
@@ -132,12 +138,36 @@ function App() {
   }, [screen]);
 
   useEffect(() => {
+    if (screen !== "game-over") return;
+
+    const timer = window.setTimeout(() => setScreen("result"), GAME_OVER_NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [screen]);
+
+  useEffect(() => {
+    if (screen !== "result" || isMusicMuted || !result || printedResultRef.current === result) return;
+
+    printedResultRef.current = result;
+    controllerRef.current?.playReceiptPrintSound();
+  }, [isMusicMuted, result, screen]);
+
+  useEffect(() => {
     if (homeThemeRef.current) homeThemeRef.current.muted = isMusicMuted;
     controllerRef.current?.setMusicMuted(isMusicMuted);
   }, [isMusicMuted]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (screen === "stage-transition" && event.code === "Space") {
+        event.preventDefault();
+        continueToNextStage();
+        return;
+      }
+      if (screen === "result" && event.key === "ArrowDown") {
+        event.preventDefault();
+        resultRef.current?.scrollBy({ top: window.innerHeight * 0.72, behavior: "smooth" });
+        return;
+      }
       if (screen === "perk" && perkChoice) {
         const optionCount = perkChoice.options.length;
         if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
@@ -193,6 +223,8 @@ function App() {
     homeThemeRef.current?.pause();
     if (homeThemeRef.current) homeThemeRef.current.currentTime = 0;
     setResult(null);
+    setSettlementComment(null);
+    printedResultRef.current = null;
     setGameStatus(null);
     setPerkChoice(null);
     setPerkCursor(0);
@@ -217,9 +249,13 @@ function App() {
       perks: nextResult.selectedPerks,
     });
     setResult(nextResult);
+    setSettlementComment(getSettlementComment(
+      calculateTakeHomePay(nextResult.stageScores, nextResult.claims),
+      nextResult.selectedPerks,
+    ));
     setStageClear(null);
     saveBestScore(nextResult.score);
-    setScreen("result");
+    setScreen(nextResult.reason === "claims" ? "game-over" : "result");
   }
 
   function handlePerkChoice(choice: PerkChoice) {
@@ -314,12 +350,17 @@ function App() {
 
   const sort = (direction: Direction) => controllerRef.current?.sort(direction);
   const toggleMusic = () => setIsMusicMuted((muted) => !muted);
-  const settlementAmount = result ? calculateSettlement(result.score) : 0;
+  const trackFeedbackOpened = (source: "home" | "result") => {
+    trackEvent("feedback_opened", source === "result" && result
+      ? { source, score: result.score, stage: result.stageIndex + 1 }
+      : { source });
+  };
+  const settlementAmount = result ? calculateSettlement(result.stageScores) : 0;
   const claimDeductionAmount = result ? calculateClaimDeduction(result.claims) : 0;
-  const takeHomePay = result ? calculateTakeHomePay(result.score, result.claims) : 0;
+  const takeHomePay = result ? calculateTakeHomePay(result.stageScores, result.claims) : 0;
   const showsGoldenWatermelon = result?.selectedPerks.includes(GOLDEN_WATERMELON_CONTRACT) ?? false;
   const showsTrashBag = result?.selectedPerks.includes(TRASH_COLLECTOR) ?? false;
-  const visibleGame = screen === "playing" || screen === "countdown" || screen === "tutorial-intro" || screen === "perk" || screen === "stage-transition" || screen === "tutorial-result";
+  const visibleGame = screen === "playing" || screen === "countdown" || screen === "tutorial-intro" || screen === "perk" || screen === "stage-transition" || screen === "tutorial-result" || screen === "game-over";
   const displayedStageIndex = gameStatus?.stageIndex ?? stageClear?.completedStageIndex ?? 0;
 
   return (
@@ -346,6 +387,10 @@ function App() {
             ))}
           </h1>
           <button className="market-start-button" type="button" onClick={startGame}>{copy.startGame}</button>
+          <a className="market-feedback-button" href={createFeedbackMailto("home")} onClick={() => trackFeedbackOpened("home")}>
+            <span aria-hidden="true">✉</span>
+            <span>피드백</span>
+          </a>
           <button
             className="market-mute-button"
             type="button"
@@ -413,7 +458,7 @@ function App() {
             <span>STAGE {gameStatus.stageIndex + 1}</span>
             <strong>{getStage(gameStatus.stageIndex).title[locale]}</strong>
             <span>{gameStatus.stageProgress} / {getStage(gameStatus.stageIndex).target}</span>
-            <span>클레임 {gameStatus.claims} / {gameStatus.claimLimit}</span>
+            <span>누적 클레임 {gameStatus.claims}회</span>
           </div>
         )}
         {screen === "stage-transition" && stageClear && (
@@ -426,7 +471,9 @@ function App() {
                 <div><dt>점수</dt><dd>{stageClear.status.score}</dd></div>
               </dl>
               <span>다음 근무: {getStage(stageClear.completedStageIndex + 1).title[locale]}</span>
-              <button type="button" onClick={continueToNextStage}>다음 스테이지로</button>
+              <button type="button" onClick={continueToNextStage} aria-label="다음 스테이지로 이동 (Space 키)">
+                다음 스테이지로 <small>Space</small>
+              </button>
             </section>
           </div>
         )}
@@ -470,62 +517,106 @@ function App() {
             </section>
           </div>
         )}
+        {screen === "game-over" && result && (
+          <div className="game-over-overlay" role="status" aria-live="assertive">
+            <section className="game-over-card">
+              <p>CUSTOMER COMPLAINT SURGE</p>
+              <h2>고객 불만 폭주!</h2>
+              <strong>클레임 {result.claims}회를 받았습니다</strong>
+              <span>노동 결과 영수증을 출력합니다...</span>
+            </section>
+          </div>
+        )}
       </section>
 
       {screen === "result" && result && (
         <section className="market-result" aria-label={copy.resultLabel}>
-          <header className="settlement-header">
-            <p>수박수박수박박수박 마트</p>
-            <h1>{copy.resultLabel}</h1>
-            <span>근무 정산 영수증</span>
-          </header>
-          <section className="settlement-receipt" aria-label="급여 명세서">
-            <p className="settlement-receipt-eyebrow">WORK SETTLEMENT</p>
-            <p className="market-result-reason">{result.reason === "complete" ? "정산 완료!" : "중도 정산 · 클레임 누적"}</p>
-            <dl className="settlement-breakdown">
-              <div><dt>분류 성과</dt><dd>{copy.score(result.score)}</dd></div>
-              <div><dt>환산 단가</dt><dd>1점당 {formatWon(WON_PER_SCORE)}</dd></div>
-              <div><dt>분류 수당</dt><dd>{formatWon(settlementAmount)}</dd></div>
-              <div><dt>클레임 공제 ({result.claims}회)</dt><dd className="settlement-claim-deduction">- {formatWon(claimDeductionAmount)}</dd></div>
-              <div className="settlement-total"><dt>이번 근무 실수령</dt><dd>{formatWon(takeHomePay)}</dd></div>
-            </dl>
-            <p className="market-result-stage">도달 스테이지 {result.stageIndex + 1} · 선택 특성 {result.selectedPerks.length}개</p>
-          </section>
-
-          <section className="settlement-perks" aria-labelledby="settlement-perks-title">
-            <p>오늘의 운영 지시</p>
-            <h2 id="settlement-perks-title">선택한 특성</h2>
-            {result.selectedPerks.length > 0 ? (
-              <ul>
-                {result.selectedPerks.map((perk) => (
-                  <li key={perk}>
-                    <strong>{perk}</strong>
-                    <span>{getPerkDetails(perk)[0] ?? "이번 근무에 적용됨"}</span>
+          <div ref={resultRef} className="market-result-scrollable">
+            <header className="settlement-header">
+              <p>수박수박수박박수박 마트</p>
+              <h1>{copy.resultLabel}</h1>
+              <span>근무 정산 영수증</span>
+            </header>
+            <p className="market-result-scroll-hint" aria-label="아래로 스크롤하거나 아래 방향키를 눌러 영수증 전체 보기">
+              <span aria-hidden="true">↓</span> 아래로 스크롤해 전체 보기 <kbd>↓</kbd><b>키</b>
+            </p>
+            <section className="settlement-receipt" aria-label="급여 명세서">
+              <p className="settlement-receipt-eyebrow">WORK SETTLEMENT</p>
+              <p className="market-result-reason">{result.reason === "complete" ? "정산 완료!" : "중도 정산 · 클레임 누적"}</p>
+              <dl className="settlement-breakdown">
+                <div><dt>분류 성과</dt><dd>{copy.score(result.score)}</dd></div>
+                <div><dt>환산 단가</dt><dd>스테이지별 차등 적용</dd></div>
+                <div><dt>분류 수당</dt><dd>{formatWon(settlementAmount)}</dd></div>
+                <div><dt>클레임 공제 ({result.claims}회)</dt><dd className="settlement-claim-deduction">- {formatWon(claimDeductionAmount)}</dd></div>
+                <div className="settlement-total"><dt>이번 근무 실수령</dt><dd>{formatWon(takeHomePay)}</dd></div>
+              </dl>
+              <ul className="settlement-stage-wages" aria-label="스테이지별 분류 수당">
+                {result.stageScores.slice(0, result.stageIndex + 1).map((stageScore, stageIndex) => (
+                  <li key={stageIndex}>
+                    <span>STAGE {stageIndex + 1}</span>
+                    <span>{stageScore}점 × {formatWon(getWonPerScore(stageIndex))}</span>
+                    <strong>{formatWon(calculateStageSettlement(stageScore, stageIndex))}</strong>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <span className="settlement-perks-empty">선택한 특성이 없습니다.</span>
+              <p className="market-result-stage">도달 스테이지 {result.stageIndex + 1} · 선택 특성 {result.selectedPerks.length}개</p>
+            </section>
+
+            {settlementComment && (
+              <section className="settlement-comment" aria-labelledby="settlement-comment-title">
+                <p>{settlementComment.label}</p>
+                <h2 id="settlement-comment-title">{settlementComment.title}</h2>
+                <strong>{settlementComment.summary}</strong>
+                <span>{settlementComment.detail}</span>
+                {settlementComment.perkHighlight && <small>{settlementComment.perkHighlight}</small>}
+                <em>{settlementComment.closing}</em>
+              </section>
             )}
-          </section>
 
-          <section className="settlement-items" aria-labelledby="settlement-items-title">
-            <p>오늘의 분류 실적</p>
-            <h2 id="settlement-items-title">처리한 품목</h2>
-            <dl>
-              <div><dt>정상 수박</dt><dd>{result.sortedCounts.good}개</dd></div>
-              <div><dt>썩은 수박</dt><dd>{result.sortedCounts.rotten}개</dd></div>
-              {showsGoldenWatermelon && <div><dt>황금 수박</dt><dd>{result.sortedCounts.golden}개</dd></div>}
-              {showsTrashBag && <div><dt>쓰레기봉투</dt><dd>{result.sortedCounts.trash}개</dd></div>}
-            </dl>
-          </section>
+            <section className="settlement-perks" aria-labelledby="settlement-perks-title">
+              <p>오늘의 운영 지시</p>
+              <h2 id="settlement-perks-title">선택한 특성</h2>
+              {result.selectedPerks.length > 0 ? (
+                <ul>
+                  {result.selectedPerks.map((perk) => (
+                    <li key={perk}>
+                      <strong>{perk}</strong>
+                      {getPerkDetails(perk).map((detail) => (
+                        <span key={detail}>{detail}</span>
+                      ))}
+                      {getPerkDetails(perk).length === 0 && <span>이번 근무에 적용됨</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="settlement-perks-empty">선택한 특성이 없습니다.</span>
+              )}
+            </section>
 
-          {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
-          <div className="market-result-actions">
-            <button type="button" onClick={startGame}>{copy.retry}</button>
-            <button type="button" onClick={handleShare}>{copy.share}</button>
-            <button type="button" onClick={goHome}>{copy.home}</button>
+            <section className="settlement-items" aria-labelledby="settlement-items-title">
+              <p>오늘의 분류 실적</p>
+              <h2 id="settlement-items-title">처리한 품목</h2>
+              <dl>
+                <div><dt>정상 수박</dt><dd>{result.sortedCounts.good}개</dd></div>
+                <div><dt>썩은 수박</dt><dd>{result.sortedCounts.rotten}개</dd></div>
+                {showsGoldenWatermelon && <div><dt>황금 수박</dt><dd>{result.sortedCounts.golden}개</dd></div>}
+                {showsTrashBag && <div><dt>쓰레기봉투</dt><dd>{result.sortedCounts.trash}개</dd></div>}
+              </dl>
+            </section>
           </div>
+
+          <footer className="market-result-footer">
+            {shareMessage && <p className="market-result-share-message" role="status">{shareMessage}</p>}
+            <div className="market-result-actions">
+              <button type="button" onClick={startGame}>{copy.retry}</button>
+              <button type="button" onClick={handleShare}>{copy.share}</button>
+              <button type="button" onClick={goHome}>{copy.home}</button>
+            </div>
+            <a className="market-result-feedback" href={createFeedbackMailto("result", result)} onClick={() => trackFeedbackOpened("result")}>
+              <span aria-hidden="true">✉</span>
+              게임 피드백 보내기
+            </a>
+          </footer>
         </section>
       )}
     </main>
