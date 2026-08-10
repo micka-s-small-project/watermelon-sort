@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GODS_HAND, getPerkDetails, getRandomPerks, PREMIUM_DELIVERY_CONTRACT, SAFETY_TRAINING } from "./perks";
+import { BOSS_SON, EARTHQUAKE_DISASTER, GODS_HAND, getPerkDetails, getRandomPerks, PERFECT_DELIVERY_BONUS, PREMIUM_DELIVERY_CONTRACT, SAFETY_TRAINING } from "./perks";
 
 describe("perk copy", () => {
   it("explains the premium contract benefit and its risk", () => {
@@ -26,5 +26,13 @@ describe("perk copy", () => {
       "위험: 남은 클레임 기회가 단 1회",
       "주의: 한 번의 실수 또는 시간 초과 시 즉시 해고",
     ]);
+  });
+
+  it("does not offer start-only perks from a midpoint box", () => {
+    const midpointOffer = getRandomPerks([], () => 0, 20, [PERFECT_DELIVERY_BONUS, BOSS_SON, EARTHQUAKE_DISASTER]);
+
+    expect(midpointOffer).not.toContain(PERFECT_DELIVERY_BONUS);
+    expect(midpointOffer).not.toContain(BOSS_SON);
+    expect(midpointOffer).not.toContain(EARTHQUAKE_DISASTER);
   });
 });
