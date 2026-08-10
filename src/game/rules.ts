@@ -22,10 +22,24 @@ export function pointsForCorrectSort(
   premiumDeliveryContract = false,
   trashCollector = false,
   godsHand = false,
+  defectiveRecyclingContract = false,
+  continuousDeliveryContract = false,
+  closingSettlementContract = false,
+  earthquakeActive = false,
 ): number {
   if (godsHand && type !== "trash") return 3;
   const basePoints = currentScore >= 200 ? 3 : currentScore >= 100 ? 2 : 1;
-  if (type === "rotten" && (premiumDeliveryContract || trashCollector)) return 0;
   if (type === "trash") return basePoints * 4;
-  return premiumDeliveryContract ? basePoints * 2 : basePoints;
+  if (type === "rotten") {
+    if (defectiveRecyclingContract) return basePoints * 3 * (closingSettlementContract ? 2 : 1) * (earthquakeActive ? 3 : 1);
+    if (premiumDeliveryContract || trashCollector) return 0;
+    return basePoints * (closingSettlementContract ? 2 : 1) * (earthquakeActive ? 3 : 1);
+  }
+  if (defectiveRecyclingContract) return 1;
+  const freshMultiplier =
+    (premiumDeliveryContract ? 2 : 1)
+    * (continuousDeliveryContract ? 2 : 1)
+    * (closingSettlementContract ? 2 : 1)
+    * (earthquakeActive ? 3 : 1);
+  return basePoints * freshMultiplier;
 }

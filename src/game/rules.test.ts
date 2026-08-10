@@ -54,4 +54,28 @@ describe("watermelon game rules", () => {
     expect(pointsForCorrectSort(0, "trash", false, true, true)).toBe(4);
   });
 
+  it("doubles fresh watermelon scores after the continuous delivery threshold", () => {
+    expect(pointsForCorrectSort(100, "good", false, false, false, false, true)).toBe(4);
+    expect(pointsForCorrectSort(100, "rotten", false, false, false, false, true)).toBe(2);
+  });
+
+  it("doubles only regular watermelon scores during closing settlement", () => {
+    expect(pointsForCorrectSort(100, "good", false, false, false, false, false, true)).toBe(4);
+    expect(pointsForCorrectSort(100, "rotten", false, false, false, false, false, true)).toBe(4);
+    expect(pointsForCorrectSort(100, "trash", false, true, false, false, false, true)).toBe(8);
+  });
+
+  it("makes rotten watermelons valuable and fixes fresh watermelons at one point for defective recycling", () => {
+    expect(pointsForCorrectSort(200, "rotten", true, false, false, true)).toBe(9);
+    expect(pointsForCorrectSort(200, "rotten", false, false, false, true, false, true)).toBe(18);
+    expect(pointsForCorrectSort(200, "good", true, false, false, true, true, true)).toBe(1);
+  });
+
+  it("triples regular watermelon scores during an earthquake without changing special watermelon values", () => {
+    expect(pointsForCorrectSort(100, "good", false, false, false, false, false, false, true)).toBe(6);
+    expect(pointsForCorrectSort(100, "rotten", false, false, false, false, false, false, true)).toBe(6);
+    expect(pointsForCorrectSort(100, "trash", true, false, false, false, false, false, true)).toBe(8);
+    expect(pointsForCorrectSort(100, "good", false, false, true, false, false, false, true)).toBe(3);
+  });
+
 });

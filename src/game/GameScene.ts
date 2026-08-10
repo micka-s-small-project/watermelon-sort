@@ -1,9 +1,14 @@
 import Phaser from "phaser";
 import {
+  BOSS_SON,
   CLOSING_RUSH,
+  CLOSING_SETTLEMENT_CONTRACT,
+  CONTINUOUS_DELIVERY_CONTRACT,
   CONTINUOUS_WORK_ALLOWANCE,
+  DEFECTIVE_RECYCLING_CONTRACT,
   GOLDEN_WATERMELON_CONTRACT,
   GODS_HAND,
+  EARTHQUAKE_DISASTER,
   getRandomPerks,
   hasPerk,
   hasPremiumDeliveryContract,
@@ -54,6 +59,9 @@ const GOLDEN_WATERMELON_SPAWN_CHANCE = 0.01;
 const WATERMELON_Y = [108, 134, 160, 186, 212, 238, 264, 290, 316, 342];
 const SORT_TRANSITION_MS = 100;
 const MAX_CLAIMS = 3;
+const EARTHQUAKE_NORMAL_MS = 5_000;
+const EARTHQUAKE_DURATION_MS = 1_250;
+const EARTHQUAKE_CAMERA_INTENSITY = 0.02;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
@@ -69,6 +77,12 @@ export class GameScene extends Phaser.Scene {
   private stageIndex = 0;
   private stageProgress = 0;
   private claims = 0;
+  private stageScoreStart = 0;
+  private stageHadClaim = false;
+  private closingSettlementActive = true;
+  private bossSonStageIndex?: number;
+  private earthquakeActive = false;
+  private reduceMotion = false;
   private selectedPerks: string[] = [];
   private midpointChoiceShown = false;
   private activeType: WatermelonType = "good";
@@ -87,10 +101,13 @@ export class GameScene extends Phaser.Scene {
   private watermelonSprites: ConveyorSprite[] = [];
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
+  private claimText?: Phaser.GameObjects.Text;
   private backgroundMusic?: VolumeAdjustableSound;
   private activeItem: ConveyorItem = "good";
   private goldenFeedbackObjects: Phaser.GameObjects.GameObject[] = [];
   private bonusPrompt?: Phaser.GameObjects.Text;
+  private earthquakeOverlay?: Phaser.GameObjects.Rectangle;
+  private earthquakeCycleTimer?: Phaser.Time.TimerEvent;
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -117,7 +134,11 @@ export class GameScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
     const textResolution = Math.min(window.devicePixelRatio || 1, 2);
+    this.reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
+    this.earthquakeOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x8d6548, 0)
+      .setDepth(19)
+      .setScrollFactor(0);
     this.scoreText = this.add.text(76, 300, "SCORE 0", {
       fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#26733a", fontStyle: "bold",
       align: "center", stroke: "#ffffff", strokeThickness: 3,
@@ -125,6 +146,10 @@ export class GameScene extends Phaser.Scene {
     this.comboText = this.add.text(width - 76, 300, "COMBO x0", {
       fontFamily: '"DosStory", monospace', fontSize: "18px", color: "#b55b2d", fontStyle: "bold",
       align: "center", stroke: "#ffffff", strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
+    this.claimText = this.add.text(82, 74, "클레임 ♥ ♥ ♥", {
+      fontFamily: '"DosStory", monospace', fontSize: "16px", color: "#bd3145", fontStyle: "bold",
+      align: "center", stroke: "#ffffff", strokeThickness: 4,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.backgroundMusic = this.sound.add("watermelon-theme", {
       loop: true, volume: this.musicMuted ? 0 : 0.35,
@@ -151,6 +176,7 @@ export class GameScene extends Phaser.Scene {
     this.awaitingStageTransition = false;
     this.clearGoldenFeedback();
     this.clearBonusPrompt();
+    this.stopEarthquakeCycle();
     this.watermelonSprites.forEach((sprite) => sprite.destroy());
     this.watermelonSprites = [];
     this.score = 0;
@@ -158,6 +184,10 @@ export class GameScene extends Phaser.Scene {
     this.stageIndex = 0;
     this.stageProgress = 0;
     this.claims = 0;
+    this.stageScoreStart = 0;
+    this.stageHadClaim = false;
+    this.closingSettlementActive = true;
+    this.bossSonStageIndex = undefined;
     this.selectedPerks = [];
     this.midpointChoiceShown = false;
     this.claimShieldUsed = false;
@@ -166,6 +196,7 @@ export class GameScene extends Phaser.Scene {
     this.goldenTapCount = 0;
     this.scoreText?.setText("SCORE 0");
     this.comboText?.setText("COMBO x0");
+    this.updateClaimDisplay();
     this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomWatermelonType());
     this.createQueueSprites();
     return true;
@@ -175,10 +206,12 @@ export class GameScene extends Phaser.Scene {
     if (!this.awaitingPerk || hasPerk(this.selectedPerks, perk)) return;
     this.selectedPerks.push(perk);
     if (perk === GODS_HAND) this.godsHandClaimUsed = false;
+    if (perk === BOSS_SON) this.bossSonStageIndex = this.stageIndex;
     if (perk === PREMIUM_DELIVERY_CONTRACT) this.refreshUpcomingQueue();
     if (perk === INSTANT_ALLOWANCE) this.addScore(10);
     this.awaitingPerk = false;
     this.playing = true;
+    if (this.hasEarthquakeContract()) this.startEarthquakeCycle();
     if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
     this.emitStatus();
     this.startTimer(true);
@@ -189,6 +222,9 @@ export class GameScene extends Phaser.Scene {
     this.awaitingStageTransition = false;
     this.stageIndex += 1;
     this.stageProgress = 0;
+    this.stageScoreStart = this.score;
+    this.stageHadClaim = false;
+    this.closingSettlementActive = true;
     this.midpointChoiceShown = false;
     this.claimShieldUsed = false;
     this.recoveryBonusPending = false;
@@ -236,16 +272,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.combo += 1;
     const zeroValueRottenWatermelon = this.activeType === "rotten"
-      && (this.hasPremiumDeliveryContract() || this.hasTrashCollector());
+      && (this.hasPremiumDeliveryContract() || this.hasTrashCollector())
+      && !this.hasDefectiveRecyclingContract();
+    const closingSettlementApplies = this.hasClosingSettlementContract()
+      && this.closingSettlementActive
+      && this.isClosingSettlementWindow();
     let earnedScore = pointsForCorrectSort(
       this.score,
       this.activeType,
       this.hasPremiumDeliveryContract(),
       this.hasTrashCollector(),
       this.hasGodsHand(),
+      this.hasDefectiveRecyclingContract(),
+      this.hasContinuousDeliveryContract() && this.combo >= 20,
+      closingSettlementApplies,
+      this.hasEarthquakeEffect(),
     );
-    this.combo += 1;
     if (!zeroValueRottenWatermelon && !this.hasGodsHand() && hasPerk(this.selectedPerks, CLOSING_RUSH)) earnedScore += 1;
     if (!zeroValueRottenWatermelon && !this.hasGodsHand() && hasPerk(this.selectedPerks, CONTINUOUS_WORK_ALLOWANCE) && this.combo % 10 === 0) {
       earnedScore += 5;
@@ -272,8 +316,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private registerClaim(reason: GameClaim["reason"]) {
-    const claimConsumed = this.hasGodsHand() || !hasPerk(this.selectedPerks, SAFETY_TRAINING) || this.claimShieldUsed;
+    const bossSonPardon = this.hasBossSonPardon();
+    if (!bossSonPardon) {
+      this.stageHadClaim = true;
+      if (this.isClosingSettlementWindow()) this.closingSettlementActive = false;
+    }
+    const claimConsumed = !bossSonPardon
+      && (this.hasGodsHand() || !hasPerk(this.selectedPerks, SAFETY_TRAINING) || this.claimShieldUsed);
+    this.showClaimFeedback(claimConsumed, bossSonPardon ? "사장님네 아들 봐줌!" : undefined);
     this.onClaim({ stageIndex: this.stageIndex, reason, itemType: this.activeType, combo: this.combo, claimConsumed });
+    if (bossSonPardon) {
+      this.emitStatus();
+      this.advanceAndStartNextRound();
+      return;
+    }
     if (this.hasGodsHand()) {
       this.godsHandClaimUsed = true;
       this.combo = 0;
@@ -301,7 +357,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private completeStage() {
-    if (hasPerk(this.selectedPerks, PERFECT_DELIVERY_BONUS)) this.addScore(20);
+    this.stopEarthquakeCycle();
+    if (hasPerk(this.selectedPerks, PERFECT_DELIVERY_BONUS) && !this.stageHadClaim) {
+      this.addScore(Math.floor((this.score - this.stageScoreStart) * 0.5));
+    }
     this.emitStatus();
     this.onStageCompleted(this.getStatus());
     if (!hasNextStage(this.stageIndex)) {
@@ -319,10 +378,17 @@ export class GameScene extends Phaser.Scene {
     this.playing = false;
     this.awaitingPerk = true;
     this.roundTimer?.remove(false);
+    if (this.hasEarthquakeContract()) this.stopEarthquakeCycle();
+    const options = getRandomPerks(
+      this.selectedPerks,
+      Math.random,
+      3,
+        phase === "midpoint" ? [PERFECT_DELIVERY_BONUS, BOSS_SON, EARTHQUAKE_DISASTER] : [],
+    );
     this.onPerkChoice({
       stageIndex: this.stageIndex,
       phase,
-      options: getRandomPerks(this.selectedPerks),
+      options,
     });
   }
 
@@ -378,6 +444,77 @@ export class GameScene extends Phaser.Scene {
 
   private hasGodsHand(): boolean {
     return hasPerk(this.selectedPerks, GODS_HAND);
+  }
+
+  private hasContinuousDeliveryContract(): boolean {
+    return hasPerk(this.selectedPerks, CONTINUOUS_DELIVERY_CONTRACT);
+  }
+
+  private hasClosingSettlementContract(): boolean {
+    return hasPerk(this.selectedPerks, CLOSING_SETTLEMENT_CONTRACT);
+  }
+
+  private hasDefectiveRecyclingContract(): boolean {
+    return hasPerk(this.selectedPerks, DEFECTIVE_RECYCLING_CONTRACT);
+  }
+
+  private hasEarthquakeContract(): boolean {
+    return hasPerk(this.selectedPerks, EARTHQUAKE_DISASTER);
+  }
+
+  private hasBossSonPardon(): boolean {
+    return this.bossSonStageIndex === this.stageIndex;
+  }
+
+  private hasEarthquakeEffect(): boolean {
+    return this.earthquakeActive && this.hasEarthquakeContract();
+  }
+
+  private startEarthquakeCycle() {
+    this.stopEarthquakeCycle();
+    this.earthquakeCycleTimer = this.time.delayedCall(EARTHQUAKE_NORMAL_MS, () => this.activateEarthquake());
+  }
+
+  private activateEarthquake() {
+    if (!this.hasEarthquakeContract() || !this.playing) return;
+    this.earthquakeActive = true;
+    this.earthquakeOverlay?.setAlpha(0.24);
+    if (!this.reduceMotion) this.cameras.main.shake(EARTHQUAKE_DURATION_MS, EARTHQUAKE_CAMERA_INTENSITY, true);
+    this.showEarthquakeFeedback();
+    this.earthquakeCycleTimer = this.time.delayedCall(EARTHQUAKE_DURATION_MS, () => {
+      this.earthquakeActive = false;
+      this.earthquakeOverlay?.setAlpha(0);
+      if (this.hasEarthquakeContract() && this.playing) {
+        this.earthquakeCycleTimer = this.time.delayedCall(EARTHQUAKE_NORMAL_MS, () => this.activateEarthquake());
+      }
+    });
+  }
+
+  private stopEarthquakeCycle() {
+    this.earthquakeCycleTimer?.remove(false);
+    this.earthquakeCycleTimer = undefined;
+    this.earthquakeActive = false;
+    this.earthquakeOverlay?.setAlpha(0);
+    this.cameras.main?.resetFX();
+  }
+
+  private showEarthquakeFeedback() {
+    const feedback = this.add.text(this.scale.width / 2, 214, "지진 발생! ×3", {
+      fontFamily: '"DosStory", monospace', fontSize: "19px", color: "#9a4d26", fontStyle: "bold",
+      stroke: "#ffffff", strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(45);
+    this.tweens.add({
+      targets: feedback,
+      y: feedback.y - 18,
+      alpha: 0,
+      duration: EARTHQUAKE_DURATION_MS,
+      ease: "Sine.easeOut",
+      onComplete: () => feedback.destroy(),
+    });
+  }
+
+  private isClosingSettlementWindow(): boolean {
+    return this.stageProgress >= getStage(this.stageIndex).target - 15;
   }
 
   private claimLimit(): number {
@@ -493,6 +630,30 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private showClaimFeedback(claimConsumed: boolean, protectedMessage?: string) {
+    const activeSprite = this.watermelonSprites[this.watermelonSprites.length - 1];
+    if (!activeSprite) return;
+    const feedbackColor = claimConsumed ? "#d3344b" : "#287d9b";
+    const feedback = this.add.text(activeSprite.x, activeSprite.y - 42, claimConsumed ? "♥ -1" : protectedMessage ?? "보호막 방어!", {
+      fontFamily: '"DosStory", monospace', fontSize: claimConsumed ? "24px" : "17px",
+      color: feedbackColor, fontStyle: "bold",
+      stroke: "#ffffff", strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(42);
+    const flash = this.add.circle(activeSprite.x, activeSprite.y, 44, claimConsumed ? 0xd3344b : 0x287d9b, 0.34).setDepth(11);
+    this.tweens.add({
+      targets: [feedback, flash],
+      y: "-=26",
+      alpha: 0,
+      duration: 520,
+      ease: "Sine.easeOut",
+      onComplete: () => {
+        feedback.destroy();
+        flash.destroy();
+      },
+    });
+    this.tweens.add({ targets: activeSprite, x: activeSprite.x - 8, duration: 55, yoyo: true, repeat: 3 });
+  }
+
   private clearGoldenFeedback() {
     this.goldenFeedbackObjects.forEach((feedback) => {
       this.tweens.killTweensOf(feedback);
@@ -522,7 +683,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private emitStatus() {
+    this.updateClaimDisplay();
     this.onStatusChange(this.getStatus());
+  }
+
+  private updateClaimDisplay() {
+    const claimLimit = this.claimLimit();
+    const remainingClaims = Math.max(claimLimit - this.displayedClaims(), 0);
+    const hearts = Array.from({ length: claimLimit }, (_, index) => (index < remainingClaims ? "♥" : "♡")).join(" ");
+    this.claimText?.setText(`클레임 ${hearts}`);
   }
 
   private finish(reason: GameOverReason) {
@@ -531,6 +700,7 @@ export class GameScene extends Phaser.Scene {
     this.awaitingStageTransition = false;
     this.clearGoldenFeedback();
     this.clearBonusPrompt();
+    this.stopEarthquakeCycle();
     this.roundTimer?.remove(false);
     this.backgroundMusic?.stop();
     this.onGameOver({ ...this.getStatus(), reason });
@@ -540,6 +710,7 @@ export class GameScene extends Phaser.Scene {
     this.playing = false;
     this.clearGoldenFeedback();
     this.clearBonusPrompt();
+    this.stopEarthquakeCycle();
     this.roundTimer?.remove(false);
     this.backgroundMusic?.destroy();
     this.backgroundMusic = undefined;
