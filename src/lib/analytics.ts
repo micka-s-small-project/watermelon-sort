@@ -10,6 +10,9 @@ type AnalyticsEventProperties = {
   game_finished: { reason: GameOverReason; reached_stage: number; score: number; duration_seconds: number; perks: readonly string[] };
   game_retried: { previous_reason: GameOverReason; previous_stage: number; previous_score: number };
   score_shared: { score: number; method: "native_share" | "clipboard" };
+  tutorial_started: { total: number };
+  tutorial_step_completed: { completed: number; total: number; first_attempt_correct: boolean };
+  tutorial_completed: { total: number; first_attempt_correct: number };
 };
 
 export type AnalyticsEventName = keyof AnalyticsEventProperties;

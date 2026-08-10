@@ -20,5 +20,11 @@ describe("localized copy", () => {
     expect(getCopy("ko").score(12)).toBe("12점");
     expect(getCopy("en").shareText(12)).toContain("12");
     expect(getCopy("ko").shareText(12)).toContain("12");
+    expect(getCopy("ko").tutorialProgress(0, 10)).toContain("1");
+    expect(getCopy("en").tutorialResultAccuracy(8, 10)).toContain("8");
+    expect(getCopy("ko").tutorialIntroTitle).toBe("튜토리얼!");
+    expect(getCopy("ko").tutorialTraitGuide).toContain("카운트다운");
+    expect(getCopy("ko").tutorialBonusGuide).toContain("아무 버튼");
+    expect(getCopy("ko").tutorialPerkSelectionGuide).toContain("잘 읽고");
   });
 });

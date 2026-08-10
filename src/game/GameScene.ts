@@ -21,8 +21,10 @@ import {
   WORK_MANUAL,
 } from "./perks";
 import { expectedDirection, pointsForCorrectSort, pointsForGoldenTap, randomWatermelonType } from "./rules";
+import { createSortedCounts, recordSortedItem } from "./sortedCounts";
 import { getStage, hasNextStage, isStageComplete, isStageMidpoint } from "./stages";
-import type { Direction, GameClaim, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, WatermelonType } from "./types";
+import { TUTORIAL_SEQUENCE, TUTORIAL_TOTAL, TUTORIAL_WATERMELONS } from "./tutorial";
+import type { Direction, GameClaim, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, TutorialResult, WatermelonType } from "./types";
 
 type GameAssets = {
   background: string;
@@ -42,6 +44,8 @@ type SceneOptions = {
   onStageClear: (stageClear: StageClear) => void;
   onClaim: (claim: GameClaim) => void;
   onStageCompleted: (status: GameStatus) => void;
+  onTutorialStepCompleted: (completed: number, total: number, firstAttemptCorrect: boolean) => void;
+  onTutorialResult: (result: TutorialResult) => void;
   onReady: () => void;
 };
 
@@ -71,6 +75,8 @@ export class GameScene extends Phaser.Scene {
   private readonly onStageClear: (stageClear: StageClear) => void;
   private readonly onClaim: (claim: GameClaim) => void;
   private readonly onStageCompleted: (status: GameStatus) => void;
+  private readonly onTutorialStepCompleted: (completed: number, total: number, firstAttemptCorrect: boolean) => void;
+  private readonly onTutorialResult: (result: TutorialResult) => void;
   private readonly onReady: () => void;
   private score = 0;
   private combo = 0;
@@ -95,6 +101,7 @@ export class GameScene extends Phaser.Scene {
   private godsHandClaimUsed = false;
   private recoveryBonusPending = false;
   private goldenTapCount = 0;
+  private sortedCounts = createSortedCounts();
   private musicMuted = false;
   private queue: ConveyorItem[] = [];
   private roundTimer?: Phaser.Time.TimerEvent;
@@ -108,6 +115,13 @@ export class GameScene extends Phaser.Scene {
   private bonusPrompt?: Phaser.GameObjects.Text;
   private earthquakeOverlay?: Phaser.GameObjects.Rectangle;
   private earthquakeCycleTimer?: Phaser.Time.TimerEvent;
+  private tutorialActive = false;
+  private tutorialResultPending = false;
+  private tutorialIndex = 0;
+  private tutorialCompletedWatermelons = 0;
+  private tutorialFirstAttemptCorrect = 0;
+  private tutorialAttemptedCurrent = false;
+  private tutorialPerkPending = false;
 
   constructor(options: SceneOptions) {
     super("watermelon-game");
@@ -118,6 +132,8 @@ export class GameScene extends Phaser.Scene {
     this.onStageClear = options.onStageClear;
     this.onClaim = options.onClaim;
     this.onStageCompleted = options.onStageCompleted;
+    this.onTutorialStepCompleted = options.onTutorialStepCompleted;
+    this.onTutorialResult = options.onTutorialResult;
     this.onReady = options.onReady;
   }
 
@@ -160,10 +176,14 @@ export class GameScene extends Phaser.Scene {
     this.onReady();
   }
 
-  begin(): boolean {
+  begin(showTutorial = false): boolean {
     if (!this.ready) return false;
     this.preview();
     this.emitStatus();
+    if (showTutorial) {
+      this.startTutorial();
+      return true;
+    }
     this.requestPerk("start");
     return true;
   }
@@ -194,21 +214,35 @@ export class GameScene extends Phaser.Scene {
     this.godsHandClaimUsed = false;
     this.recoveryBonusPending = false;
     this.goldenTapCount = 0;
+    this.sortedCounts = createSortedCounts();
+    this.tutorialActive = false;
+    this.tutorialResultPending = false;
+    this.tutorialIndex = 0;
+    this.tutorialCompletedWatermelons = 0;
+    this.tutorialFirstAttemptCorrect = 0;
+    this.tutorialAttemptedCurrent = false;
+    this.tutorialPerkPending = false;
     this.scoreText?.setText("SCORE 0");
     this.comboText?.setText("COMBO x0");
     this.updateClaimDisplay();
-    this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomWatermelonType());
-    this.createQueueSprites();
+    this.prepareRegularQueue();
     return true;
   }
 
   choosePerk(perk: string) {
     if (!this.awaitingPerk || hasPerk(this.selectedPerks, perk)) return;
-    this.selectedPerks.push(perk);
-    if (perk === GODS_HAND) this.godsHandClaimUsed = false;
-    if (perk === BOSS_SON) this.bossSonStageIndex = this.stageIndex;
-    if (perk === PREMIUM_DELIVERY_CONTRACT) this.refreshUpcomingQueue();
-    if (perk === INSTANT_ALLOWANCE) this.addScore(10);
+    if (this.tutorialActive && this.tutorialPerkPending) {
+      this.applyPerk(perk);
+      this.tutorialPerkPending = false;
+      this.awaitingPerk = false;
+      this.resolved = false;
+      this.playing = true;
+      this.prepareRemainingTutorialQueue();
+      this.emitStatus();
+      return;
+    }
+    this.applyPerk(perk);
+    this.tutorialActive = false;
     this.awaitingPerk = false;
     this.playing = true;
     if (this.hasEarthquakeContract()) this.startEarthquakeCycle();
@@ -249,6 +283,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   openBonusBox() {
+    if (this.tutorialActive && this.activeItem === "bonus") {
+      this.openTutorialBonusBox();
+      return;
+    }
     if (!this.playing || this.activeItem !== "bonus") return;
     this.resolved = true;
     this.advanceQueue();
@@ -257,6 +295,10 @@ export class GameScene extends Phaser.Scene {
 
   sort(direction: Direction) {
     if (!this.playing || this.awaitingPerk) return;
+    if (this.tutorialActive) {
+      this.sortTutorial(direction);
+      return;
+    }
     if (this.activeItem === "bonus") {
       this.openBonusBox();
       return;
@@ -299,6 +341,7 @@ export class GameScene extends Phaser.Scene {
       this.recoveryBonusPending = false;
     }
     this.addScore(earnedScore);
+    this.sortedCounts = recordSortedItem(this.sortedCounts, this.activeType);
     this.stageProgress += 1;
     this.comboText?.setText(`COMBO x${this.combo}`);
     this.emitStatus();
@@ -313,6 +356,119 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.advanceAndStartNextRound();
+  }
+
+  private startTutorial() {
+    this.tutorialActive = true;
+    this.tutorialIndex = 0;
+    this.tutorialCompletedWatermelons = 0;
+    this.tutorialFirstAttemptCorrect = 0;
+    this.tutorialAttemptedCurrent = false;
+    this.playing = true;
+    this.prepareTutorialQueue();
+    this.emitStatus();
+  }
+
+  private sortTutorial(direction: Direction) {
+    const tutorialItem = TUTORIAL_SEQUENCE[this.tutorialIndex];
+    if (!tutorialItem || this.resolved) return;
+    if (tutorialItem === "bonus") {
+      this.openTutorialBonusBox();
+      return;
+    }
+    if (direction !== expectedDirection(tutorialItem)) {
+      this.tutorialAttemptedCurrent = true;
+      this.emitStatus();
+      return;
+    }
+
+    const firstAttemptCorrect = !this.tutorialAttemptedCurrent;
+    if (firstAttemptCorrect) this.tutorialFirstAttemptCorrect += 1;
+    this.tutorialIndex += 1;
+    this.tutorialCompletedWatermelons += 1;
+    this.onTutorialStepCompleted(this.tutorialCompletedWatermelons, TUTORIAL_TOTAL, firstAttemptCorrect);
+
+    this.tutorialAttemptedCurrent = false;
+    if (this.tutorialCompletedWatermelons === TUTORIAL_TOTAL) {
+      this.resolved = true;
+      this.playing = false;
+      this.tutorialResultPending = true;
+      this.emitStatus();
+      this.onTutorialResult(this.getTutorialResult());
+      return;
+    }
+
+    this.advanceTutorialWatermelon();
+  }
+
+  private openTutorialBonusBox() {
+    if (this.resolved || TUTORIAL_SEQUENCE[this.tutorialIndex] !== "bonus") return;
+    this.tutorialIndex += 1;
+    this.tutorialAttemptedCurrent = false;
+    this.tutorialPerkPending = true;
+    this.requestPerk("tutorial");
+  }
+
+  private applyPerk(perk: string) {
+    this.selectedPerks.push(perk);
+    if (perk === GODS_HAND) this.godsHandClaimUsed = false;
+    if (perk === BOSS_SON) this.bossSonStageIndex = this.stageIndex;
+    if (perk === PREMIUM_DELIVERY_CONTRACT) this.refreshUpcomingQueue();
+    if (perk === INSTANT_ALLOWANCE) this.addScore(10);
+  }
+
+  private prepareTutorialQueue() {
+    this.watermelonSprites.forEach((sprite) => sprite.destroy());
+    this.watermelonSprites = [];
+    this.queue = [...TUTORIAL_WATERMELONS].reverse();
+    this.createQueueSprites();
+    this.insertTutorialBonusBox(this.queue.length - 6);
+    this.resolved = false;
+  }
+
+  private advanceTutorialWatermelon() {
+    this.resolved = true;
+    this.advanceQueue();
+    this.emitStatus();
+    this.time.delayedCall(SORT_TRANSITION_MS, () => {
+      if (!this.tutorialActive || this.tutorialResultPending) return;
+      this.resolved = false;
+      this.emitStatus();
+    });
+  }
+
+  private insertTutorialBonusBox(boxIndex: number) {
+    const previousSprite = this.watermelonSprites[boxIndex];
+    if (boxIndex < 0 || !previousSprite) return;
+    this.queue[boxIndex] = "bonus";
+    previousSprite.destroy();
+    this.watermelonSprites[boxIndex] = this.createConveyorSprite("bonus", WATERMELON_Y[boxIndex]).setDepth(boxIndex + 2);
+  }
+
+  private prepareRemainingTutorialQueue() {
+    this.watermelonSprites.forEach((sprite) => sprite.destroy());
+    this.watermelonSprites = [];
+    const remainingWatermelons = TUTORIAL_SEQUENCE
+      .slice(this.tutorialIndex)
+      .filter((item) => item !== "bonus");
+    this.queue = Array.from({ length: WATERMELON_Y.length }, () => "good" as ConveyorItem);
+    remainingWatermelons.forEach((item, index) => {
+      this.queue[this.queue.length - 1 - index] = item;
+    });
+    this.createQueueSprites();
+    this.activeItem = this.queue[this.queue.length - 1];
+    this.activeType = this.activeItem as WatermelonType;
+  }
+
+  private prepareRegularQueue() {
+    this.watermelonSprites.forEach((sprite) => sprite.destroy());
+    this.watermelonSprites = [];
+    this.queue = Array.from({ length: WATERMELON_Y.length }, () => this.randomWatermelonType());
+    this.createQueueSprites();
+  }
+
+  private getTutorialResult(): TutorialResult {
+    return { total: TUTORIAL_TOTAL, firstAttemptCorrect: this.tutorialFirstAttemptCorrect };
   }
 
   private registerClaim(reason: GameClaim["reason"]) {
@@ -574,6 +730,8 @@ export class GameScene extends Phaser.Scene {
       if (this.resolved || !this.playing) return;
       this.resolved = true;
       if (this.activeType === "golden" && this.goldenTapCount > 0) {
+        this.sortedCounts = recordSortedItem(this.sortedCounts, "golden");
+        this.emitStatus();
         this.advanceAndStartNextRound();
         return;
       }
@@ -670,10 +828,20 @@ export class GameScene extends Phaser.Scene {
       claimLimit: this.claimLimit(),
       score: this.score,
       combo: this.combo,
+      sortedCounts: { ...this.sortedCounts },
       selectedPerks: this.selectedPerks,
       trashCollectorActive: this.hasTrashCollector(),
       goldenWatermelonActive: this.activeType === "golden",
       bonusBoxActive: this.activeItem === "bonus",
+      tutorial: this.tutorialActive && !this.tutorialResultPending
+        ? {
+            completed: this.tutorialCompletedWatermelons,
+            total: TUTORIAL_TOTAL,
+            currentItem: TUTORIAL_SEQUENCE[this.tutorialIndex] ?? "good",
+            firstAttemptCorrect: this.tutorialFirstAttemptCorrect,
+            hadWrongAttempt: this.tutorialAttemptedCurrent,
+          }
+        : undefined,
     };
   }
 

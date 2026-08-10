@@ -37,4 +37,13 @@ describe("analytics", () => {
 
     expect(capture).toHaveBeenCalledWith("claim_received", expect.objectContaining({ claim_consumed: false }));
   });
+
+  it("records tutorial completion separately from a full game result", () => {
+    const capture = vi.fn();
+    const analytics = createAnalytics({ capture });
+
+    analytics.track("tutorial_completed", { total: 10, first_attempt_correct: 8 });
+
+    expect(capture).toHaveBeenCalledWith("tutorial_completed", { total: 10, first_attempt_correct: 8 });
+  });
 });
