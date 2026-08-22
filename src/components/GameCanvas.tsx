@@ -84,12 +84,18 @@ export const GameCanvas = forwardRef<GameController, Props>(function GameCanvas(
       const baseUrl = import.meta.env.BASE_URL;
       const scene = new GameScene({
         assets: {
-          background: `${baseUrl}assets/game/conveyor-truck-clean-top-v9.png`,
+          backgrounds: [
+            `${baseUrl}assets/game/conveyor-truck-clean-top-v9.png`,
+            `${baseUrl}assets/game/stage-2-market-background-v1.png`,
+            `${baseUrl}assets/game/stage-3-supermarket-background-v1.png`,
+          ],
           good: `${baseUrl}assets/game/watermelon-good-8bit.png`,
           rotten: `${baseUrl}assets/game/watermelon-rotten-8bit.png`,
           trash: `${baseUrl}assets/game/trash-bag-8bit.png`,
           golden: `${baseUrl}assets/game/watermelon-golden-8bit.png`,
           theme: `${baseUrl}assets/game/watermelon-theme.mp3`,
+          marketTheme: `${baseUrl}assets/game/town-square-hustle.mp3`,
+          supermarketTheme: `${baseUrl}assets/game/aisle-three-high-score.mp3`,
           sortEffect: `${baseUrl}assets/game/sorting-effect.mp3`,
           receiptPrint: `${baseUrl}assets/game/printer-receipt.mp3`,
         },
