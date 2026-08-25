@@ -24,16 +24,19 @@ import {
 import { expectedDirection, pointsForCorrectSort, pointsForGoldenTap, randomWatermelonType } from "./rules";
 import { createSortedCounts, recordSortedItem } from "./sortedCounts";
 import { getStage, hasNextStage, isStageComplete, isStageMidpoint } from "./stages";
+import { getStageBackgroundAssetKey, getStageMusicAssetKey, STAGE_BACKGROUND_ASSET_KEYS } from "./stageAssets";
 import { TUTORIAL_SEQUENCE, TUTORIAL_TOTAL, TUTORIAL_WATERMELONS } from "./tutorial";
 import type { Direction, GameClaim, GameOverReason, GameResult, GameStatus, PerkChoice, StageClear, TutorialResult, WatermelonType } from "./types";
 
 type GameAssets = {
-  background: string;
+  backgrounds: readonly [string, string, string];
   good: string;
   rotten: string;
   trash: string;
   golden: string;
   theme: string;
+  marketTheme: string;
+  supermarketTheme: string;
   sortEffect: string;
   receiptPrint: string;
 };
@@ -68,6 +71,9 @@ const MAX_CLAIMS = 3;
 const EARTHQUAKE_NORMAL_MS = 5_000;
 const EARTHQUAKE_DURATION_MS = 1_250;
 const EARTHQUAKE_CAMERA_INTENSITY = 0.02;
+const BACKGROUND_MUSIC_VOLUME = 0.35;
+const MARKET_MUSIC_VOLUME = 0.45;
+const SUPERMARKET_MUSIC_VOLUME = 0.35;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
@@ -113,7 +119,10 @@ export class GameScene extends Phaser.Scene {
   private scoreText?: Phaser.GameObjects.Text;
   private comboText?: Phaser.GameObjects.Text;
   private claimText?: Phaser.GameObjects.Text;
+  private backgroundImage?: Phaser.GameObjects.Image;
   private backgroundMusic?: VolumeAdjustableSound;
+  private marketMusic?: VolumeAdjustableSound;
+  private supermarketMusic?: VolumeAdjustableSound;
   private receiptPrintSound?: Phaser.Sound.BaseSound;
   private activeItem: ConveyorItem = "good";
   private goldenFeedbackObjects: Phaser.GameObjects.GameObject[] = [];
@@ -143,12 +152,16 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image("conveyor-background", this.assets.background);
+    this.assets.backgrounds.forEach((background, stageIndex) => {
+      this.load.image(getStageBackgroundAssetKey(stageIndex), background);
+    });
     this.load.image("watermelon-good", this.assets.good);
     this.load.image("watermelon-rotten", this.assets.rotten);
     this.load.image("trash-bag", this.assets.trash);
     this.load.image("watermelon-golden", this.assets.golden);
     this.load.audio("watermelon-theme", this.assets.theme);
+    this.load.audio("market-theme", this.assets.marketTheme);
+    this.load.audio("supermarket-theme", this.assets.supermarketTheme);
     this.load.audio("sorting-effect", this.assets.sortEffect);
     this.load.audio("receipt-print", this.assets.receiptPrint);
   }
@@ -157,7 +170,7 @@ export class GameScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const textResolution = Math.min(window.devicePixelRatio || 1, 2);
     this.reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    this.add.image(width / 2, height / 2, "conveyor-background").setDisplaySize(width, height);
+    this.backgroundImage = this.add.image(width / 2, height / 2, STAGE_BACKGROUND_ASSET_KEYS[0]).setDisplaySize(width, height);
     this.earthquakeOverlay = this.add.rectangle(width / 2, height / 2, width, height, 0x8d6548, 0)
       .setDepth(19)
       .setScrollFactor(0);
@@ -174,7 +187,13 @@ export class GameScene extends Phaser.Scene {
       align: "center", stroke: "#ffffff", strokeThickness: 4,
     }).setOrigin(0.5).setDepth(20).setResolution(textResolution);
     this.backgroundMusic = this.sound.add("watermelon-theme", {
-      loop: true, volume: this.musicMuted ? 0 : 0.35,
+      loop: true, volume: this.musicMuted ? 0 : BACKGROUND_MUSIC_VOLUME,
+    }) as VolumeAdjustableSound;
+    this.marketMusic = this.sound.add("market-theme", {
+      loop: true, volume: this.musicMuted ? 0 : MARKET_MUSIC_VOLUME,
+    }) as VolumeAdjustableSound;
+    this.supermarketMusic = this.sound.add("supermarket-theme", {
+      loop: true, volume: this.musicMuted ? 0 : SUPERMARKET_MUSIC_VOLUME,
     }) as VolumeAdjustableSound;
     this.receiptPrintSound = this.sound.add("receipt-print", { volume: 0.7 });
 
@@ -210,6 +229,10 @@ export class GameScene extends Phaser.Scene {
     this.stageScores = [0, 0, 0];
     this.combo = 0;
     this.stageIndex = 0;
+    this.updateStageBackground();
+    this.backgroundMusic?.stop();
+    this.marketMusic?.stop();
+    this.supermarketMusic?.stop();
     this.stageProgress = 0;
     this.claims = 0;
     this.claimHistory = 0;
@@ -255,7 +278,7 @@ export class GameScene extends Phaser.Scene {
     this.awaitingPerk = false;
     this.playing = true;
     if (this.hasEarthquakeContract()) this.startEarthquakeCycle();
-    if (!this.backgroundMusic?.isPlaying) this.backgroundMusic?.play();
+    this.playStageMusic();
     this.emitStatus();
     this.startTimer(true);
   }
@@ -264,6 +287,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.awaitingStageTransition) return;
     this.awaitingStageTransition = false;
     this.stageIndex += 1;
+    this.updateStageBackground();
+    this.playStageMusic();
     this.stageProgress = 0;
     this.stageScoreStart = this.score;
     this.stageHadClaim = false;
@@ -275,9 +300,27 @@ export class GameScene extends Phaser.Scene {
     this.requestPerk("start");
   }
 
+  private updateStageBackground() {
+    this.backgroundImage?.setTexture(getStageBackgroundAssetKey(this.stageIndex));
+  }
+
+  private playStageMusic() {
+    const activeMusic = {
+      "watermelon-theme": this.backgroundMusic,
+      "market-theme": this.marketMusic,
+      "supermarket-theme": this.supermarketMusic,
+    }[getStageMusicAssetKey(this.stageIndex)];
+    [this.backgroundMusic, this.marketMusic, this.supermarketMusic]
+      .filter((music) => music !== activeMusic)
+      .forEach((music) => music?.stop());
+    if (!activeMusic?.isPlaying) activeMusic?.play();
+  }
+
   setMusicMuted(muted: boolean) {
     this.musicMuted = muted;
-    this.backgroundMusic?.setVolume?.(muted ? 0 : 0.35);
+    this.backgroundMusic?.setVolume?.(muted ? 0 : BACKGROUND_MUSIC_VOLUME);
+    this.marketMusic?.setVolume?.(muted ? 0 : MARKET_MUSIC_VOLUME);
+    this.supermarketMusic?.setVolume?.(muted ? 0 : SUPERMARKET_MUSIC_VOLUME);
   }
 
   playReceiptPrintSound() {
@@ -889,6 +932,8 @@ export class GameScene extends Phaser.Scene {
     this.stopEarthquakeCycle();
     this.roundTimer?.remove(false);
     this.backgroundMusic?.stop();
+    this.marketMusic?.stop();
+    this.supermarketMusic?.stop();
     this.onGameOver({ ...this.getStatus(), reason });
   }
 
@@ -900,6 +945,10 @@ export class GameScene extends Phaser.Scene {
     this.roundTimer?.remove(false);
     this.backgroundMusic?.destroy();
     this.backgroundMusic = undefined;
+    this.marketMusic?.destroy();
+    this.marketMusic = undefined;
+    this.supermarketMusic?.destroy();
+    this.supermarketMusic = undefined;
     this.receiptPrintSound?.stop();
     this.receiptPrintSound?.destroy();
     this.receiptPrintSound = undefined;

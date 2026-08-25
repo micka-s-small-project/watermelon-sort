@@ -415,7 +415,6 @@ function App() {
           onTutorialStepCompleted={handleTutorialStepCompleted}
           onTutorialResult={handleTutorialResult}
         />
-        <div className="stage-tint" aria-hidden="true" />
         {screen === "countdown" && (
           <div className="game-countdown" aria-label={copy.countdownLabel}>
             <p key={countdown} className="game-countdown-number" aria-live="polite">{countdown}</p>
