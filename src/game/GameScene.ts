@@ -72,8 +72,8 @@ const EARTHQUAKE_NORMAL_MS = 5_000;
 const EARTHQUAKE_DURATION_MS = 1_250;
 const EARTHQUAKE_CAMERA_INTENSITY = 0.02;
 const BACKGROUND_MUSIC_VOLUME = 0.35;
-const MARKET_MUSIC_VOLUME = 0.45;
-const SUPERMARKET_MUSIC_VOLUME = 0.35;
+const MARKET_MUSIC_VOLUME = 0.7;
+const SUPERMARKET_MUSIC_VOLUME = 0.7;
 
 export class GameScene extends Phaser.Scene {
   private readonly assets: GameAssets;
